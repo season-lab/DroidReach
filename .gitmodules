@@ -1,0 +1,3 @@
+[submodule "cex"]
+	path = cex
+	url = https://github.com/season-lab/cex
