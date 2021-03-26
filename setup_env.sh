@@ -28,7 +28,7 @@ function setup_and_activate_venv {
         return;
     fi
 
-    virtualenv -p python3 venv
+    virtualenv -p python3 "$SCRIPTPATH/venv"
     source "$SCRIPTPATH/venv/bin/activate"
 
     pip install -r "$SCRIPTPATH/cex/requirements.txt"
