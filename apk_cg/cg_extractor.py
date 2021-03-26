@@ -2,7 +2,6 @@ import hashlib
 import json
 import os
 import subprocess
-from collections import defaultdict
 
 import networkx as nx
 import sys
@@ -32,7 +31,7 @@ sample_list = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(i
 pbar = tqdm(sample_list)
 for sample in pbar:
     input_file = os.path.join(input_dir, sample)
-    hash = hashlib.sha256(open(input_file, 'rb').read()).hexdigest()
+    hash_chks = hashlib.sha256(open(input_file, 'rb').read()).hexdigest()
 
     sample_name = sample.replace('.apk', '')
 
@@ -91,23 +90,20 @@ for sample in pbar:
     inner_pbar = tqdm(targets)
     for t in inner_pbar:
         inner_pbar.set_description(f'\tTarget: {t}')
-        comp_dict = defaultdict(list)
 
         for comp in components:
             # get sources associated with the component
             sources = comp.get_sources(g.nodes)
 
             for s in sources:
-                # get all the "simple" (no repeated nodes) paths
-                link = list(nx.all_simple_paths(g, source=s, target=t))
+                # get only one path
+                if s not in g.nodes or t not in g.nodes:
+                    continue
+                if nx.has_path(g, source=s, target=t):
+                    link = list(nx.shortest_path(g, source=s, target=t))
+                    paths[t] = link
 
-                if link:
-                    comp_dict[comp.name].append(link)
-
-        if comp_dict:
-            paths[t] = comp_dict
-
-    final_dict = {'sha256': hash, 'paths': paths}
+    final_dict = {'sha256': hash_chks, 'paths': paths}
 
     pbar.set_description('Writing output...')
     with open(json_calls_file, 'w+') as f_out:

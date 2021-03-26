@@ -49,7 +49,7 @@ if __name__ == "__main__":
                 lib_obj=lib,
                 method_name=name,
                 offset=off,
-                path=paths_result["paths"][native_signatures[i]]["a"][0][0]))
+                path=paths_result["paths"][native_signatures[i]]))
 
     # Check path to vulns
     for native_method in native_methods:
