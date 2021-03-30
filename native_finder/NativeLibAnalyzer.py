@@ -1,61 +1,77 @@
 import os
-import rzpipe
 import tempfile
+import subprocess
 
 from collections import namedtuple
-FunctionDescription = namedtuple("FunctionDescription", ["name", "offset"])
-JniFunctionDescription = namedtuple("JniFunctionDescription", ["class_name", "method_name", "offset"])
+JniFunctionDescription = namedtuple("JniFunctionDescription", ["analyzer", "class_name", "method_name", "args", "offset"])
 
 class NativeLibAnalyzer(object):
-    def __init__(self, native_name, native_raw):
-        self.name = native_name
+
+    CMD_GHIDRA = [
+        "$GHIDRA_HOME/support/analyzeHeadless",
+        "$PROJ_FOLDER",
+        "$PROJ_NAME",
+        "-process",
+        "$BINARY",
+        "-postScript",
+        "DetectJNIFunctions.java",
+        "-scriptPath",
+        os.path.realpath(os.path.join(os.path.dirname(__file__), "bin"))]
+
+    def __init__(self, cex, native_name, native_raw):
+        assert "/" not in native_name
+
+        self.cex = cex
+        self.ghidra = self.cex.pm.get_plugin_by_name("Ghidra")
+        self.libname = native_name
         self.native_raw = native_raw
-        self.functions = None
         self.jni_functions = None
 
-    def get_functions(self):
-        if self.functions is not None:
-            return self.functions
-
+    def _get_ghidra_cmd(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
-            native_f = open(os.path.join(tmpdirname, self.name), "wb")
+            native_f = open(os.path.join(tmpdirname, self.libname), "wb")
             native_f.write(self.native_raw)
 
-            rz = rzpipe.open(native_f.name, flags=['-2'])
-            rz.cmd("aa")
-            self.functions = list(map(
-                lambda x: FunctionDescription(
-                    name=x["name"], offset=int(x["offset"])),
-                rz.cmdj("aflj")))
+            proj_path = self.ghidra.get_project_path(
+                os.path.join(tmpdirname, self.libname))
+            proj_name = os.path.basename(proj_path)
+            proj_dir  = os.path.dirname(proj_path)
 
-            rz.quit()
-            native_f.close()
-
-        return self.functions
+        ghidra_home = os.environ["GHIDRA_HOME"]
+        cmd = NativeLibAnalyzer.CMD_GHIDRA[:]
+        for i in range(len(cmd)):
+            cmd[i] = cmd[i]                                     \
+                .replace("$GHIDRA_HOME", ghidra_home)           \
+                .replace("$BINARY", self.libname)               \
+                .replace("$PROJ_FOLDER", proj_dir)              \
+                .replace("$PROJ_NAME", proj_name)
+        return cmd
 
     def get_jni_functions(self):
         if self.jni_functions is not None:
             return self.jni_functions
 
-        self.get_functions()
         self.jni_functions = list()
-        for f, off in self.get_functions():
-            f = f.replace("sym.", "")
-            if f.startswith("Java_"):
-                # What if the method name has underscore?
-                method_name = f.split("_")[-1]
-                class_name = ".".join(f.replace("Java_", "").split("_")[:-1])
-            if "JNIEnv" in f:
-                method_name = f.split("__JNIEnv__")[0].split(".")[-1]
-                class_name  = ".".join(f.split("__JNIEnv__")[0].split(".")[:-1])
-            else:
+
+        cmd = self._get_ghidra_cmd()
+        methods_raw = subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
+        methods_raw = methods_raw.decode("ASCII")
+        for line in methods_raw.split("\n"):
+            line = line.strip()
+            if not line.startswith("INFO  Method: "):
                 continue
 
+            line = line.replace("INFO  Method: ", "").replace(" (GhidraScript)", "")
+            method_info, offset = line.split(" @ ")
+            offset = int(offset, 16)
+
+            class_name, method_name, args = method_info.split(" ")
             self.jni_functions.append(
                 JniFunctionDescription(
+                    analyzer=self,
                     class_name=class_name,
                     method_name=method_name,
-                    offset=off
-                )
-            )
+                    args=args,
+                    offset=offset))
+
         return self.jni_functions

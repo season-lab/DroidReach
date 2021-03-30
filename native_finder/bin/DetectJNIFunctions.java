@@ -7,6 +7,7 @@
 
 import ghidra.app.util.headless.HeadlessScript;
 
+import java.util.ArrayList;
 import ghidra.program.model.util.*;
 import ghidra.program.model.reloc.*;
 import ghidra.program.model.data.*;
@@ -41,7 +42,7 @@ public class DetectJNIFunctions extends HeadlessScript {
 
 		Long res = 0L;
 		for (int i = 0; i < bits / 8; ++i) {
-			Long off = (long)raw_data[i] & 0xff;
+			Long off = (long) raw_data[i] & 0xff;
 			if (is_little_endian)
 				off = off << (i * 8);
 			else
@@ -83,60 +84,86 @@ public class DetectJNIFunctions extends HeadlessScript {
 		return res;
 	}
 
-	public void run() throws Exception {
-		Language arch = currentProgram.getLanguage();
-		as = arch.getDefaultSpace();
-		bits = arch.getDefaultSpace().getSize();
-		is_little_endian = !arch.isBigEndian();
-		max_addr = 1L << bits;
-
-		memory = currentProgram.getMemory();
-		MemoryBlock[] sections = memory.getBlocks();
-		MemoryBlock data_section = null;
-		for (MemoryBlock mb : sections) {
-			if (mb.getName().equals(".data")) {
-				data_section = mb;
-				break;
-			}
-		}
-
-		if (data_section == null) {
-			System.err.print("Unable to find \".data\" section\n");
-			return;
-		}
-
-		printf("[DEBUG] Found \".data\" section: %#x - %#x\n", data_section.getStart().getOffset(),
-				data_section.getStart().getOffset() + data_section.getSize());
-
-		for (int i = 0; i < data_section.getSize() - (bits / 8) * 3; ++i) {
-			Address methodNamePtrPtr = data_section.getStart().add(i);
-			Address methodArgsPtrPtr = data_section.getStart().add(i + bits / 8);
-			Address methodFuncPtrPtr = data_section.getStart().add(i + (bits / 8) * 2);
+	private void printMethodsInSection(MemoryBlock mb) {
+		for (int i = 0; i < mb.getSize() - (bits / 8) * 3; ++i) {
+			Address methodNamePtrPtr = mb.getStart().add(i);
+			Address methodArgsPtrPtr = mb.getStart().add(i + bits / 8);
+			Address methodFuncPtrPtr = mb.getStart().add(i + (bits / 8) * 2);
 
 			Address methodNamePtr = readAddr(methodNamePtrPtr);
-			if (methodNamePtr == null)
+			if (methodNamePtr == null) {
 				continue;
+			}
 			Address methodArgsPtr = readAddr(methodArgsPtrPtr);
-			if (methodArgsPtr == null)
+			if (methodArgsPtr == null) {
 				continue;
+			}
 			Address methodFuncPtr = readAddr(methodFuncPtrPtr);
-			if (methodFuncPtr == null)
+			if (methodFuncPtr == null) {
 				continue;
+			}
 
 			// printf("[DEBUG] Processing address: %#x\n\t%#x\n\t%#x\n\t%#x\n", methodNamePtrPtr.getOffset(),
 			// 		methodNamePtr.getOffset(), methodArgsPtr.getOffset(), methodFuncPtr.getOffset());
 
 			String methodName = readString(methodNamePtr);
-			if (methodName == null)
+			if (methodName == null) {
 				continue;
+			}
 			String methodArgs = readString(methodArgsPtr);
-			if (methodArgs == null || !methodArgs.contains("(") || !methodArgs.contains(")"))
+			if (methodArgs == null || !methodArgs.contains("(") || !methodArgs.contains(")")) {
 				continue;
+			}
 			Function methodFunc = getFunctionAt(methodFuncPtr);
-			if (methodFunc == null)
+			if (methodFunc == null) {
 				continue;
+			}
 
-			printf("Method: %s %s @ %#x\n", methodName, methodArgs, methodFuncPtr.getOffset());
+			printf("Method: ??? %s %s @ %#x\n", methodName, methodArgs, methodFuncPtr.getOffset());
+		}
+	}
+
+	private void printMethodsJava() {
+	      Listing listing = currentProgram.getListing();
+	      FunctionIterator iter_functions = listing.getFunctions(true);
+	      while (iter_functions.hasNext() && !monitor.isCancelled()) {
+	    	  Function f = iter_functions.next();
+	    	  String name = f.getName();
+	    	  if (name.startsWith("Java_")) {
+	    		  String[] tokens = name.split("_");
+	    		  String methodName = tokens[tokens.length-1];
+	    		  String className = "";
+	    		  for (int i=1; i<tokens.length-1; ++i) {
+	    			  className += tokens[i];
+	    			  if (i < tokens.length-2)
+	    				  className += ".";
+	    		  }
+	    		  printf("Method: %s %s ??? @ %#x\n", className, methodName, f.getEntryPoint().getOffset());
+	    	  }
+	      }
+	}
+
+	public void run() throws Exception {
+		Language arch = currentProgram.getLanguage();
+		as = arch.getDefaultSpace();
+		bits = arch.getDefaultSpace().getSize();
+		is_little_endian = !arch.isBigEndian();
+		max_addr = (2L << (bits - 1)) - 1;
+
+		printf("[DEBUG] bits: %d, is_little_endian: %s, max_addr: %#x\n", bits, is_little_endian, max_addr);
+
+		memory = currentProgram.getMemory();
+		MemoryBlock[] sections = memory.getBlocks();
+		ArrayList<MemoryBlock> data_sections = new ArrayList<>();
+		for (MemoryBlock mb : sections) {
+			if (mb.getName().contains(".data"))
+				data_sections.add(mb);
+		}
+
+		for (MemoryBlock mb : data_sections) {
+			printf("[DEBUG] Found \"%s\" section: %#x - %#x\n", mb.getName(), mb.getStart().getOffset(),
+					mb.getStart().getOffset() + mb.getSize());
+			printMethodsInSection(mb);
 		}
 	}
 }
