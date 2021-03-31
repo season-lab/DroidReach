@@ -5,8 +5,7 @@ import sys
 import os
 
 from collections import namedtuple
-from native_finder import APKAnalyzer
-from apk_cg import build_paths_android
+from apk_analyzer import APKAnalyzer
 from cex.cex import CEX
 
 log = logging.getLogger("ap.run")
@@ -26,12 +25,10 @@ def setup_logging():
     logging.basicConfig(filename="/tmp/android-paths.log", encoding="ascii", level=logging.WARNING,
         format="%(asctime)s : [%(name)s] %(message)s", datefmt="%m/%d/%Y %I:%M:%S %p")
 
-    log_cg     = logging.getLogger("ap.cg_extractor")
-    log_native = logging.getLogger("ap.APKAnalyzer")
+    log_apka = logging.getLogger("ap.APKAnalyzer")
 
     log.setLevel(logging.INFO)
-    log_cg.setLevel(logging.INFO)
-    log_native.setLevel(logging.INFO)
+    log_apka.setLevel(logging.INFO)
 
 
 # TODO: merge graphs of different libraries
@@ -51,7 +48,7 @@ if __name__ == "__main__":
     log.info(f"running android-paths on {apk_path}")
     cex          = CEX()
     apk_analyzer = APKAnalyzer(cex, apk_path)
-    paths_result = build_paths_android(apk_path)
+    paths_result = apk_analyzer.get_paths_to_native()
 
     log.info("android paths built")
     native_signatures = list(paths_result["paths"].keys())
