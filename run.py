@@ -86,7 +86,7 @@ if __name__ == "__main__":
             for vuln_offset in vuln_offsets:
                 vuln_offset = CEX.rebase_addr(vuln_offset)
 
-                log.info(f"checking path from {native_method.offset:#x} @ {libpath} to {vuln_offset} @ {libpath}")
+                log.info(f"checking path from {native_method.offset:#x} @ {libpath} to {vuln_offset:#x} @ {libpath}")
                 path = cex.find_path(libpath, native_method.offset, vuln_offset, plugins=["Ghidra"])
                 if len(path) > 0:
                     print("[!] Found potentially vulnerable path to %#x @ %s" % (vuln_offset, native_method.libname))

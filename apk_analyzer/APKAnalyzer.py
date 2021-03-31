@@ -60,7 +60,6 @@ class APKAnalyzer(object):
         self.package_name = self.apk.get_package()
         self._jvm_demangler = JavaNameDemangler()
         self._native_lib_analysis = None
-        self._native_jni_methods  = None
 
         APKAnalyzer.log.info("APKAnalyzer initialization done")
 
