@@ -13,7 +13,7 @@ function pull_submodules {
 }
 
 function compile_demangler {
-    pushd "$SCRIPTPATH/native_finder/bin"
+    pushd "$SCRIPTPATH/apk_analyzer/bin"
 
     if [ ! -f "./JavaDemangler.class" ]; then
         make
