@@ -1,6 +1,6 @@
 from networkx.classes.reportviews import NodeView
 
-from utils import reformat_comp, find_nodes_from_class
+from .utils import reformat_comp, find_nodes_from_class
 
 
 class AppComponent:

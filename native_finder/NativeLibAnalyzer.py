@@ -5,6 +5,8 @@ import subprocess
 from collections import namedtuple
 JniFunctionDescription = namedtuple("JniFunctionDescription", ["analyzer", "class_name", "method_name", "args", "offset"])
 
+# TODO: prima scrematura con rizin
+
 class NativeLibAnalyzer(object):
 
     CMD_GHIDRA = [

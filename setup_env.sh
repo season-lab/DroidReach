@@ -32,7 +32,6 @@ function setup_and_activate_venv {
     source "$SCRIPTPATH/venv/bin/activate"
 
     pip install -r "$SCRIPTPATH/cex/requirements.txt"
-    pip install tqdm
     pip install pyyaml
 
     git clone https://github.com/androguard/androguard.git /tmp/androguard

@@ -1,8 +1,8 @@
-import subprocess
 import json
 import os
 
 from shutil import copyfile
+from .cg_extractor import find_paths
 
 
 SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -22,10 +22,7 @@ def build_paths_android(apk_path):
         os.mkdir(JSONG_DIR)
 
     copyfile(apk_path, os.path.join(INPUT_DIR, os.path.basename(apk_path)))
-
-    proc = subprocess.Popen(["python3", os.path.join(SCRIPT_PATH, "cg_extractor.py"), INPUT_DIR, TMP_DIR],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    proc.communicate()
+    find_paths(INPUT_DIR, TMP_DIR)
 
     apk_name = os.path.basename(apk_path).replace(".apk", "")
     json_path = os.path.join(CALLS_DIR, apk_name + ".json")

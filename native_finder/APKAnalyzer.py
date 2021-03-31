@@ -17,14 +17,15 @@ class FileNotFoundException(APKAnalyzerError):
         super().__init__(self.message)
 
 class APKAnalyzer(object):
-    log = logging.getLogger("ptn.APKAnalyzer")
-    log.setLevel(logging.INFO)
+    log = logging.getLogger("ap.APKAnalyzer")
+    log.setLevel(logging.WARNING)
 
     def __init__(self, cex, apk_path):
         if not os.path.exists(apk_path):
             APKAnalyzer.log.error(f"{apk_path} does not exist")
             raise FileNotFoundException(apk_path)
 
+        APKAnalyzer.log.info("APKAnalyzer initialization")
         self.cex = cex
         self.apk_path = apk_path
         self.apk, self.dvm, self.analysis = AnalyzeAPK(apk_path)
@@ -33,6 +34,7 @@ class APKAnalyzer(object):
         self._jvm_demangler = JavaNameDemangler()
         self._native_lib_analysis = None
         self._native_jni_methods  = None
+        APKAnalyzer.log.info("APKAnalyzer initialization done")
 
     def get_native_libs(self):
         res = list()
@@ -65,13 +67,17 @@ class APKAnalyzer(object):
         return self._native_lib_analysis
 
     def find_native_implementation(self, method_name):
+        APKAnalyzer.log.info(f"looking for native implementation of {method_name}")
         native_libs = self._analyze_native_libs()
+        res = None
         for lib in native_libs:
             jni_functions = native_libs[lib].get_jni_functions()
             for jni_desc in jni_functions:
                 if jni_desc.method_name == method_name:
-                    return jni_desc
-        return None
+                    res = jni_desc
+
+        APKAnalyzer.log.info(f"native implementation: {res}")
+        return res
 
     def get_native_methods(self):
         if self._native_methods is not None:
