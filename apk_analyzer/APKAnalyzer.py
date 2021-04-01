@@ -147,6 +147,7 @@ class APKAnalyzer(object):
 
     def build_lib_dependency_graph(self):
         native_lib_analysis = self._analyze_native_libs()
+        APKAnalyzer.log.info(f"building dependency graph on {len(native_lib_analysis)} libraries")
 
         lib_analisys_per_arch = dict()
         for libname in native_lib_analysis:
@@ -155,6 +156,7 @@ class APKAnalyzer(object):
                 lib_analisys_per_arch[a.arch] = list()
             lib_analisys_per_arch[a.arch].append(a)
 
+        APKAnalyzer.log.info(f"dependency graph clustered in {len(lib_analisys_per_arch)} archs")
         g = nx.MultiDiGraph()
         for arch in lib_analisys_per_arch:
             libs_a = lib_analisys_per_arch[arch]
@@ -170,6 +172,8 @@ class APKAnalyzer(object):
                             if a_dst.libhash not in g.nodes:
                                 g.add_node(a_dst.libhash, path=a_dst.libpath, analyzer=a_dst)
                             g.add_edge(a_src.libhash, a_dst.libhash, fun=fun.name)
+
+        APKAnalyzer.log.info(f"returning dependency graph with {g.number_of_edges()} edges")
         return g
 
     def _analyze_native_libs(self):
@@ -182,11 +186,13 @@ class APKAnalyzer(object):
                 self.cex, lib)
         return self._native_lib_analysis
 
-    def find_native_implementations(self, method_name):
+    def find_native_implementations(self, method_name, lib_whitelist=None):
         APKAnalyzer.log.info(f"looking for native implementation of {method_name}")
         native_libs = self._analyze_native_libs()
         res = list()
         for lib in native_libs:
+            if lib_whitelist is not None and native_libs[lib].libhash not in lib_whitelist:
+                continue
             jni_functions = native_libs[lib].get_jni_functions()
             for jni_desc in jni_functions:
                 if jni_desc.method_name == method_name:

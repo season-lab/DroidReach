@@ -1,3 +1,4 @@
+import networkx as nx
 import logging
 import yaml
 import sys
@@ -62,10 +63,21 @@ if __name__ == "__main__":
         lambda x: x.split(";->")[1].split("(")[0],
         native_signatures))
 
+    log.info("building library dependency graph")
+    lib_dep_g = apk_analyzer.build_lib_dependency_graph()
+    reversed_lib_dep_g = lib_dep_g.reverse()
+
+    log.info("building subgraph containing vulnerable libraries")
+    interesting_libs = set()
+    for l_hash in vuln_libs:
+        vuln_libs[l_hash]["libs"] = set(nx.dfs_preorder_nodes(reversed_lib_dep_g, l_hash))
+        interesting_libs |= vuln_libs[l_hash]["libs"]
+    log.info(f"found {len(interesting_libs)} interesting libraries")
+
     log.info("finding mapping between native methods and implementation")
     native_methods = list()
     for i, name in enumerate(native_names):
-        jni_descs = apk_analyzer.find_native_implementations(name)
+        jni_descs = apk_analyzer.find_native_implementations(name, interesting_libs)
         for jni_desc in jni_descs:
             native_methods.append(
                 NativeMethod(

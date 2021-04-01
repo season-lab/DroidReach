@@ -50,5 +50,4 @@ if __name__ == "__main__":
     apk_analyzer = APKAnalyzer(cex, apk_path)
 
     g = apk_analyzer.build_lib_dependency_graph()
-    # import IPython; IPython.embed()
     print_dot(g)
