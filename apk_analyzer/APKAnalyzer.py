@@ -165,13 +165,16 @@ class APKAnalyzer(object):
                 if a_src.libhash not in g.nodes:
                     g.add_node(a_src.libhash, path=a_src.libpath, analyzer=a_src)
 
-                for fun in a_src.get_imported_functions():
+                for fun_src in a_src.get_imported_functions():
                     for a_dst in libs_a:
-                        exported_names = map(lambda f: f.name, a_dst.get_exported_functions())
-                        if fun.name in exported_names:
+                        for fun_dst in a_dst.get_exported_functions():
+                            if fun_src.name != fun_dst.name:
+                                continue
                             if a_dst.libhash not in g.nodes:
                                 g.add_node(a_dst.libhash, path=a_dst.libpath, analyzer=a_dst)
-                            g.add_edge(a_src.libhash, a_dst.libhash, fun=fun.name)
+                            g.add_edge(a_src.libhash, a_dst.libhash, fun=fun_src.name,
+                                src_off=fun_src.offset, dst_off=fun_dst.offset)
+                            break
 
         APKAnalyzer.log.info(f"returning dependency graph with {g.number_of_edges()} edges")
         return g
@@ -185,6 +188,17 @@ class APKAnalyzer(object):
             self._native_lib_analysis[lib] = NativeLibAnalyzer(
                 self.cex, lib)
         return self._native_lib_analysis
+
+    def get_libpath_from_hash(self, lib_hash):
+        self._analyze_native_libs()
+        for lib_path in self._native_lib_analysis:
+            a = self._native_lib_analysis[lib_path]
+            if a.libhash == lib_hash:
+                return a.libpath
+        return None
+
+    def get_libname_from_hash(self, lib_hash):
+        return os.path.basename(self.get_libpath_from_hash(lib_hash))
 
     def find_native_implementations(self, method_name, lib_whitelist=None):
         APKAnalyzer.log.info(f"looking for native implementation of {method_name}")
