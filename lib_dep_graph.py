@@ -10,7 +10,7 @@ def usage():
     print_err(f"USAGE: {sys.argv[0]} <apk_path>")
     exit(1)
 
-def print_dot(g):
+def print_dot(g, all_edges=False):
     header  = "digraph {\n"
     header += "\tnode  [shape=box];\n"
     header += "\tgraph [fontname = \"monospace\"];\n"
@@ -24,12 +24,20 @@ def print_dot(g):
         row = f'\tnode_{n_id} [label="{label}"];'
         print(row)
 
-    for src_id, dst_id, n in g.edges:
-        edge = g.edges[(src_id, dst_id, n)]
-        label = edge["fun"]
-        row = f'\tnode_{src_id} -> node_{dst_id} [label="{label}"];'
-        print(row)
-
+    if all_edges:
+        for src_id, dst_id, n in g.edges:
+            edge = g.edges[(src_id, dst_id, n)]
+            label = edge["fun"]
+            row = f'\tnode_{src_id} -> node_{dst_id} [label="{label}"];'
+            print(row)
+    else:
+        visited_edges = set()
+        for src_id, dst_id, _ in g.edges:
+            if (src_id, dst_id) in visited_edges:
+                continue
+            visited_edges.add((src_id, dst_id))
+            row = f'\tnode_{src_id} -> node_{dst_id};'
+            print(row)
     print("}")
 
 if __name__ == "__main__":
@@ -42,4 +50,5 @@ if __name__ == "__main__":
     apk_analyzer = APKAnalyzer(cex, apk_path)
 
     g = apk_analyzer.build_lib_dependency_graph()
+    # import IPython; IPython.embed()
     print_dot(g)

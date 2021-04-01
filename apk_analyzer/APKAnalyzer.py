@@ -155,7 +155,7 @@ class APKAnalyzer(object):
                 lib_analisys_per_arch[a.arch] = list()
             lib_analisys_per_arch[a.arch].append(a)
 
-        g = nx.MultiGraph()
+        g = nx.MultiDiGraph()
         for arch in lib_analisys_per_arch:
             libs_a = lib_analisys_per_arch[arch]
 
