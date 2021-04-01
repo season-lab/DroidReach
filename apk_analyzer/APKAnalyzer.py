@@ -145,25 +145,52 @@ class APKAnalyzer(object):
                 self._native_libs.append(lib_full_path)
         return self._native_libs
 
+    def build_lib_dependency_graph(self):
+        native_lib_analysis = self._analyze_native_libs()
+
+        lib_analisys_per_arch = dict()
+        for libname in native_lib_analysis:
+            a = native_lib_analysis[libname]
+            if a.arch not in lib_analisys_per_arch:
+                lib_analisys_per_arch[a.arch] = list()
+            lib_analisys_per_arch[a.arch].append(a)
+
+        g = nx.DiGraph()
+        for arch in lib_analisys_per_arch:
+            libs_a = lib_analisys_per_arch[arch]
+
+            for a_src in libs_a:
+                if a_src.libhash not in g.nodes:
+                    g.add_node(a_src.libhash, path=a_src.libpath, analyzer=a_src)
+
+                for fun in a_src.get_imported_functions():
+                    for a_dst in libs_a:
+                        exported_names = map(lambda f: f.name, a_dst.get_exported_functions())
+                        if fun.name in exported_names:
+                            if a_dst.libhash not in g.nodes:
+                                g.add_node(a_dst.libhash, path=a_dst.libpath, analyzer=a_dst)
+                            g.add_edge(a_src.libhash, a_dst.libhash)
+        return g
+
     def _analyze_native_libs(self):
         if self._native_lib_analysis is not None:
             return self._native_lib_analysis
 
         self._native_lib_analysis = dict()
         for lib in self.get_native_libs():
-            self._native_lib_analysis[os.path.basename(lib)] = NativeLibAnalyzer(
+            self._native_lib_analysis[lib] = NativeLibAnalyzer(
                 self.cex, lib)
         return self._native_lib_analysis
 
-    def find_native_implementation(self, method_name):
+    def find_native_implementations(self, method_name):
         APKAnalyzer.log.info(f"looking for native implementation of {method_name}")
         native_libs = self._analyze_native_libs()
-        res = None
+        res = list()
         for lib in native_libs:
             jni_functions = native_libs[lib].get_jni_functions()
             for jni_desc in jni_functions:
                 if jni_desc.method_name == method_name:
-                    res = jni_desc
+                    res.append(jni_desc)
 
         APKAnalyzer.log.info(f"native implementation: {res}")
         return res

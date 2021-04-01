@@ -65,18 +65,17 @@ if __name__ == "__main__":
     log.info("finding mapping between native methods and implementation")
     native_methods = list()
     for i, name in enumerate(native_names):
-        jni_desc = apk_analyzer.find_native_implementation(name)
-        if jni_desc is None:
-            continue
-        native_methods.append(
-            NativeMethod(
-                libname=jni_desc.analyzer.libname,
-                libpath=jni_desc.analyzer.libpath,
-                libhash=jni_desc.analyzer.libhash,
-                jni_desc=jni_desc,
-                method_name=name,
-                offset=jni_desc.offset,
-                path=paths_result["paths"][native_signatures[i]]))
+        jni_descs = apk_analyzer.find_native_implementations(name)
+        for jni_desc in jni_descs:
+            native_methods.append(
+                NativeMethod(
+                    libname=jni_desc.analyzer.libname,
+                    libpath=jni_desc.analyzer.libpath,
+                    libhash=jni_desc.analyzer.libhash,
+                    jni_desc=jni_desc,
+                    method_name=name,
+                    offset=jni_desc.offset,
+                    path=paths_result["paths"][native_signatures[i]]))
     log.info(f"found {len(native_methods)} methods")
 
     # Check path to vulns

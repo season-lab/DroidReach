@@ -165,5 +165,6 @@ public class DetectJNIFunctions extends HeadlessScript {
 					mb.getStart().getOffset() + mb.getSize());
 			printMethodsInSection(mb);
 		}
+		printMethodsJava();
 	}
 }
