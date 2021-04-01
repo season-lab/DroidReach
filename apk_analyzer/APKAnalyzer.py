@@ -59,6 +59,7 @@ class APKAnalyzer(object):
 
         self.package_name = self.apk.get_package()
         self._jvm_demangler = JavaNameDemangler()
+        self._native_libs = None
         self._native_lib_analysis = None
 
         APKAnalyzer.log.info("APKAnalyzer initialization done")
@@ -128,27 +129,21 @@ class APKAnalyzer(object):
         return self.paths
 
     def get_native_libs(self):
-        # TODO copy libs in self.wdir
+        if self._native_libs is not None:
+            return self._native_libs
 
-        res = list()
-        visited_names = set()
+        self._native_libs = list()
         for f in self.apk.get_files():
             if f.startswith("lib/"):
-                if os.path.basename(f) in visited_names:
-                    if "x86" in f:
-                        # FIXME: use an hash...
-                        # If there is an x86 binary, substitute the previous one
-                        new_res = list()
-                        for el in res:
-                            if os.path.basename(f) not in el:
-                                new_res.append(el)
-                        res = new_res
-                    else:
-                        # Keep only one binary per arch
-                        continue
-                res.append(f)
-                visited_names.add(os.path.basename(f))
-        return res
+                lib_full_path = os.path.join(self.wdir, f)
+                if not os.path.exists(lib_full_path):
+                    os.makedirs(os.path.dirname(lib_full_path), exist_ok=True)
+                    raw_data = self.apk.get_file(f)
+                    with open(lib_full_path, "wb") as fout:
+                        fout.write(raw_data)
+
+                self._native_libs.append(lib_full_path)
+        return self._native_libs
 
     def _analyze_native_libs(self):
         if self._native_lib_analysis is not None:
@@ -157,7 +152,7 @@ class APKAnalyzer(object):
         self._native_lib_analysis = dict()
         for lib in self.get_native_libs():
             self._native_lib_analysis[os.path.basename(lib)] = NativeLibAnalyzer(
-                self.cex, os.path.basename(lib), self.apk.get_file(lib))
+                self.cex, lib)
         return self._native_lib_analysis
 
     def find_native_implementation(self, method_name):
