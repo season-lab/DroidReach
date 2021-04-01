@@ -24,8 +24,10 @@ def print_dot(g):
         row = f'\tnode_{n_id} [label="{label}"];'
         print(row)
 
-    for src_id, dst_id in g.edges:
-        row = f'\tnode_{src_id} -> node_{dst_id}'
+    for src_id, dst_id, n in g.edges:
+        edge = g.edges[(src_id, dst_id, n)]
+        label = edge["fun"]
+        row = f'\tnode_{src_id} -> node_{dst_id} [label="{label}"];'
         print(row)
 
     print("}")

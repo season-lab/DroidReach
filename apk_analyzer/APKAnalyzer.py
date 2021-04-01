@@ -155,7 +155,7 @@ class APKAnalyzer(object):
                 lib_analisys_per_arch[a.arch] = list()
             lib_analisys_per_arch[a.arch].append(a)
 
-        g = nx.DiGraph()
+        g = nx.MultiGraph()
         for arch in lib_analisys_per_arch:
             libs_a = lib_analisys_per_arch[arch]
 
@@ -169,7 +169,7 @@ class APKAnalyzer(object):
                         if fun.name in exported_names:
                             if a_dst.libhash not in g.nodes:
                                 g.add_node(a_dst.libhash, path=a_dst.libpath, analyzer=a_dst)
-                            g.add_edge(a_src.libhash, a_dst.libhash)
+                            g.add_edge(a_src.libhash, a_dst.libhash, fun=fun.name)
         return g
 
     def _analyze_native_libs(self):
