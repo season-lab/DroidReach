@@ -129,6 +129,7 @@ if __name__ == "__main__":
         if not reversed_lib_dep_g.has_node(l_hash):
             continue
         interesting_libs |= set(nx.dfs_preorder_nodes(reversed_lib_dep_g, l_hash))
+    # interesting_libs = { h for h in lib_dep_g.nodes }
     log.info(f"found {len(interesting_libs)} interesting libraries")
 
     log.info(f"building callgraphs for {len(interesting_libs)} libs")
