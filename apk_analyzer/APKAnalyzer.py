@@ -128,6 +128,9 @@ class APKAnalyzer(object):
         APKAnalyzer.log.info(f"paths dumped in {self.paths_json_filename}")
         return self.paths
 
+    def delete_callgraph(self):
+        self.callgraph = None
+
     def get_native_libs(self):
         if self._native_libs is not None:
             return self._native_libs

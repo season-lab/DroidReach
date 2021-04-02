@@ -2,6 +2,7 @@ import networkx as nx
 import logging
 import yaml
 import sys
+import gc
 import os
 
 from collections import namedtuple
@@ -61,8 +62,14 @@ def get_supergraph(native_dep_g, *callgraphs):
         edge_data = native_dep_subgraph.edges[(src_id, dst_id, n)]
         supergraph_src = get_supergraph_id(src_id, edge_data.src_off)
         supergraph_dst = get_supergraph_id(dst_id, edge_data.dst_off)
-        g.add_edge(supergraph_src, supergraph_dst)
+        if supergraph_src not in g.nodes:
+            log.WARNING("supergraph_src not in nodes")
+            continue
+        if supergraph_dst not in g.nodes:
+            log.WARNING("supergraph_dst not in nodes")
+            continue
 
+        g.add_edge(supergraph_src, supergraph_dst)
     return g
 
 # TODO: merge graphs of different libraries
@@ -89,6 +96,9 @@ if __name__ == "__main__":
     apk_analyzer = APKAnalyzer(cex, apk_path)
     paths_result = apk_analyzer.get_paths_to_native()
 
+    apk_analyzer.delete_callgraph()  # free some RAM
+    gc.collect()
+
     log.info("android paths built")
     native_signatures = list(paths_result["paths"].keys())
     native_names      = list(map(
@@ -102,9 +112,25 @@ if __name__ == "__main__":
     log.info("building subgraph containing vulnerable libraries")
     interesting_libs = set()
     for l_hash in vuln_libs:
+        if not reversed_lib_dep_g.has_node(l_hash):
+            continue
         vuln_libs[l_hash]["libs"] = set(nx.dfs_preorder_nodes(reversed_lib_dep_g, l_hash))
         interesting_libs |= vuln_libs[l_hash]["libs"]
     log.info(f"found {len(interesting_libs)} interesting libraries")
+
+    log.info(f"building callgraphs for {len(interesting_libs)} libs")
+    callgraphs = list()
+    for lib_hash in interesting_libs:
+        cg = cex.get_callgraph(apk_analyzer.get_libpath_from_hash(lib_hash), plugins=["Ghidra"])
+        callgraphs.append(Callgraph(libhash=lib_hash, graph=cg))
+
+    log.info("building supergraph")
+    libs_supergraph = get_supergraph(lib_dep_g, *callgraphs).reverse()
+    log.info(f"supergraph ({libs_supergraph.number_of_nodes()} nodes, {libs_supergraph.number_of_edges()} edges) built")
+
+    callgraphs = None
+    cex.clear_plugins_cache()  # free some RAM
+    gc.collect()
 
     log.info("finding mapping between native methods and implementation")
     native_methods = list()
@@ -122,47 +148,33 @@ if __name__ == "__main__":
                     path=paths_result["paths"][native_signatures[i]]))
     log.info(f"found {len(native_methods)} methods")
 
+    native_methods_id_in_supergraph = list(
+        map(lambda x: get_supergraph_id(x.libhash, x.offset), native_methods))
+
     # Check path to vulns
-    for native_method in native_methods:
-        for vuln_lib_hash in vuln_libs:
+    for vuln_lib_hash in vuln_libs:
+        if vuln_lib_hash not in interesting_libs:
+            continue
 
-            if native_method.libhash == vuln_lib_hash:
-                libs_to_be_analyzed = { vuln_lib_hash }
+        vuln_offsets = vuln_libs[vuln_lib_hash]["offsets"]
+        vuln_libname = vuln_libs[vuln_lib_hash]["name"]
+
+        for vuln_offset in vuln_offsets:
+            vuln_offset = CEX.rebase_addr(vuln_offset)
+            src_id = get_supergraph_id(vuln_lib_hash, vuln_offset)
+
+            log.info(f"checking path to {vuln_offset:#x} @ {vuln_libname}")
+            path = next(nx.all_simple_paths(libs_supergraph, src_id, native_methods_id_in_supergraph), None)
+            if path is not None:
+                print(f"[!] Found potentially vulnerable path to {vuln_offset:#x} @ {vuln_libname}")
+                log.info("path found")
+                path = path[::-1]
+                for m in native_method.path:
+                    print(f"  - {m}")
+                for n in path:
+                    data = libs_supergraph.nodes[n]
+                    libname = apk_analyzer.get_libname_from_hash(data["libhash"])
+                    fname = data["fname"]
+                    print(f"  - {fname} @ {libname}")
             else:
-                paths = nx.all_simple_paths(lib_dep_g, source=native_method.libhash, target=vuln_lib_hash)
-                libs_to_be_analyzed = { node for path in paths for node in path }
-
-            if len(libs_to_be_analyzed) == 0:
-                continue
-
-            log.info(f"building callgraphs for {len(libs_to_be_analyzed)} libs")
-            callgraphs = list()
-            for lib_hash in libs_to_be_analyzed:
-                cg = cex.get_callgraph(apk_analyzer.get_libpath_from_hash(lib_hash), plugins=["Ghidra"])
-                callgraphs.append(Callgraph(libhash=lib_hash, graph=cg))
-
-            log.info("building supergraph")
-            libs_supergraph = get_supergraph(lib_dep_g, *callgraphs)
-            vuln_offsets = vuln_libs[vuln_lib_hash]["offsets"]
-            vuln_libname = vuln_libs[vuln_lib_hash]["name"]
-            log.info(f"supergraph with {libs_supergraph.number_of_nodes()} nodes built")
-
-            for vuln_offset in vuln_offsets:
-                vuln_offset = CEX.rebase_addr(vuln_offset)
-                src_id = get_supergraph_id(native_method.libhash, native_method.offset)
-                dst_id = get_supergraph_id(vuln_lib_hash, vuln_offset)
-
-                log.info(f"checking path from {native_method.offset:#x} @ {native_method.libname} to {vuln_offset:#x} @ {vuln_libname}")
-                path = next(nx.all_simple_paths(libs_supergraph, src_id, dst_id), None)
-                if path is not None:
-                    print(f"[!] Found potentially vulnerable path to {vuln_offset:#x} @ {vuln_libname}")
-                    log.info("path found")
-                    for m in native_method.path:
-                        print(f"  - {m}")
-                    for n in path:
-                        data = libs_supergraph.nodes[n]
-                        libname = apk_analyzer.get_libname_from_hash(data["libhash"])
-                        fname = data["fname"]
-                        print(f"  - {fname} @ {libname}")
-                else:
-                    log.info("path not found")
+                log.info("path not found")
