@@ -55,6 +55,7 @@ class APKAnalyzer(object):
         self.callgraph = None
         self.paths_json_filename = os.path.join(self.wdir, "paths.json")
         self.paths = None
+        self.lib_dep_graph = None
         self._create_dirs()
 
         self.package_name = self.apk.get_package()
@@ -85,13 +86,13 @@ class APKAnalyzer(object):
         if self.paths is not None:
             return self.paths
 
-        self.get_callgraph()
         APKAnalyzer.log.info("generating paths to native functions")
         if os.path.exists(self.paths_json_filename):
             with open(self.paths_json_filename, "r") as fin:
                 self.paths = json.load(fin)
             APKAnalyzer.log.info("found cached")
             return self.paths
+        self.get_callgraph()
 
         acts  = AppComponent('a', self.apk.get_activities())
         provs = AppComponent('p', self.apk.get_providers())
@@ -149,6 +150,9 @@ class APKAnalyzer(object):
         return self._native_libs
 
     def build_lib_dependency_graph(self):
+        if self.lib_dep_graph is not None:
+            return self.lib_dep_graph
+
         native_lib_analysis = self._analyze_native_libs()
         APKAnalyzer.log.info(f"building dependency graph on {len(native_lib_analysis)} libraries")
 
@@ -180,7 +184,8 @@ class APKAnalyzer(object):
                             break
 
         APKAnalyzer.log.info(f"returning dependency graph with {g.number_of_edges()} edges")
-        return g
+        self.lib_dep_graph = g
+        return self.lib_dep_graph
 
     def _analyze_native_libs(self):
         if self._native_lib_analysis is not None:

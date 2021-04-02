@@ -57,16 +57,15 @@ def get_supergraph(native_dep_g, *callgraphs):
                 get_supergraph_id(cg.libhash, data_src.addr),
                 get_supergraph_id(cg.libhash, data_dst.addr))
 
-    native_dep_subgraph = g.subgraph(libhashes)
-    for src_id, dst_id, n in native_dep_subgraph:
-        edge_data = native_dep_subgraph.edges[(src_id, dst_id, n)]
-        supergraph_src = get_supergraph_id(src_id, edge_data.src_off)
-        supergraph_dst = get_supergraph_id(dst_id, edge_data.dst_off)
+    for src_id, dst_id, n in native_dep_g.edges:
+        edge_data = native_dep_g.edges[(src_id, dst_id, n)]
+        supergraph_src = get_supergraph_id(src_id, edge_data["src_off"])
+        supergraph_dst = get_supergraph_id(dst_id, edge_data["dst_off"])
         if supergraph_src not in g.nodes:
-            log.WARNING("supergraph_src not in nodes")
+            # log.warning("supergraph_src not in nodes")
             continue
         if supergraph_dst not in g.nodes:
-            log.WARNING("supergraph_dst not in nodes")
+            # log.warning("supergraph_dst not in nodes")
             continue
 
         g.add_edge(supergraph_src, supergraph_dst)
@@ -104,6 +103,7 @@ if __name__ == "__main__":
     native_names      = list(map(
         lambda x: x.split(";->")[1].split("(")[0],
         native_signatures))
+    log.info(f"found {len(native_names)} native functions (java)")
 
     log.info("building library dependency graph")
     lib_dep_g = apk_analyzer.build_lib_dependency_graph()
@@ -114,8 +114,7 @@ if __name__ == "__main__":
     for l_hash in vuln_libs:
         if not reversed_lib_dep_g.has_node(l_hash):
             continue
-        vuln_libs[l_hash]["libs"] = set(nx.dfs_preorder_nodes(reversed_lib_dep_g, l_hash))
-        interesting_libs |= vuln_libs[l_hash]["libs"]
+        interesting_libs |= set(nx.dfs_preorder_nodes(reversed_lib_dep_g, l_hash))
     log.info(f"found {len(interesting_libs)} interesting libraries")
 
     log.info(f"building callgraphs for {len(interesting_libs)} libs")
