@@ -71,6 +71,14 @@ def get_supergraph(native_dep_g, *callgraphs):
         g.add_edge(supergraph_src, supergraph_dst)
     return g
 
+def get_method_from_supergraph_id(supergraph_id, methods):
+    lib_hash, off = supergraph_id.split("_")
+    off = int(off, 16)
+    for native_method in native_methods:
+        if lib_hash == native_method.libhash and off == native_method.offset:
+            return native_method
+    return None
+
 # TODO: merge graphs of different libraries
 
 if __name__ == "__main__":
@@ -168,12 +176,15 @@ if __name__ == "__main__":
                 print(f"[!] Found potentially vulnerable path to {vuln_offset:#x} @ {vuln_libname}")
                 log.info("path found")
                 path = path[::-1]
+                native_method = get_method_from_supergraph_id(path[0], native_methods)
+                assert native_method is not None
                 for m in native_method.path:
                     print(f"  - {m}")
                 for n in path:
-                    data = libs_supergraph.nodes[n]
+                    data    = libs_supergraph.nodes[n]
                     libname = apk_analyzer.get_libname_from_hash(data["libhash"])
-                    fname = data["fname"]
-                    print(f"  - {fname} @ {libname}")
+                    fname   = data["fname"]
+                    offset  = data["addr"]
+                    print(f"  - {fname} @ {libname} [{offset:#x}]")
             else:
                 log.info("path not found")
