@@ -51,6 +51,11 @@ class NativeLibAnalyzer(object):
         self._imported_functions = None
         self._jni_functions      = None
 
+    def __str__(self):
+        return "<NativeLibAnalyzer %s [%s]>" % (self.libname, self.arch)
+
+    __repr__ = __str__
+
     def _get_ghidra_cmd(self):
         proj_path = self.ghidra.get_project_path(self.libpath)
         proj_dir  = os.path.dirname(proj_path)

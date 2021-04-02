@@ -123,6 +123,44 @@ public class DetectJNIFunctions extends HeadlessScript {
 		}
 	}
 
+/*
+https://docs.oracle.com/javase/7/docs/technotes/guides/jni/spec/design.html
+
+Table 2-1 Unicode Character Translation
+  Escape Sequence      Denotes
+
+  _0XXXX               a Unicode character XXXX.
+                       Note that lower case is used
+                       to represent non-ASCII
+                       Unicode characters, e.g.,
+                       _0abcd as opposed to
+                       _0ABCD.
+
+  _1                   the character “_”
+  _2                   the character “;” in signatures
+  _3                   the character “[“ in signatures
+*/
+
+	private String demangle(String s) {
+        // NOTE _X replaced with $$$X
+
+        while (s.contains("$$$0")) {
+            int idx = s.indexOf("$$$0");
+            assert (idx != -1);
+
+            String code_str = s.substring(idx+4, idx+8);
+            int code_int    = Integer.valueOf(code_str, 16);
+            s = s.replace(
+                "$$$0" + code_str, Character.toString((char)code_int));
+        }
+
+        s = s
+            .replace("$$$1", "_")
+            .replace("$$$2", ";")
+            .replace("$$$3", "[");
+        return s;
+	}
+
 	private void printMethodsJava() {
 	      Listing listing = currentProgram.getListing();
 	      FunctionIterator iter_functions = listing.getFunctions(true);
@@ -130,6 +168,11 @@ public class DetectJNIFunctions extends HeadlessScript {
 	    	  Function f = iter_functions.next();
 	    	  String name = f.getName();
 	    	  if (name.startsWith("Java_")) {
+                  name = name
+                    .replace("_0", "$$$0")
+                    .replace("_1", "$$$1")
+                    .replace("_2", "$$$2")
+                    .replace("_3", "$$$3");
 	    		  String[] tokens = name.split("_");
 	    		  String methodName = tokens[tokens.length-1];
 	    		  String className = "";
@@ -138,6 +181,8 @@ public class DetectJNIFunctions extends HeadlessScript {
 	    			  if (i < tokens.length-2)
 	    				  className += ".";
 	    		  }
+                  methodName = demangle(methodName);
+                  className  = demangle(className);
 	    		  printf("Method: %s %s ??? @ %#x\n", className, methodName, f.getEntryPoint().getOffset());
 	    	  }
 	      }

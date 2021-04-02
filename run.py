@@ -111,6 +111,12 @@ if __name__ == "__main__":
     native_names      = list(map(
         lambda x: x.split(";->")[1].split("(")[0],
         native_signatures))
+    class_names       = list(map(
+        lambda x: x.split(" L")[1].split(";->")[0].replace("/", "."),
+        native_signatures))
+    args_strings      = list(map(
+        lambda x: "(" + x.split("(")[1].split(" ")[0],
+        native_signatures))
     log.info(f"found {len(native_names)} native functions (java)")
 
     log.info("building library dependency graph")
@@ -141,8 +147,8 @@ if __name__ == "__main__":
 
     log.info("finding mapping between native methods and implementation")
     native_methods = list()
-    for i, name in enumerate(native_names):
-        jni_descs = apk_analyzer.find_native_implementations(name, interesting_libs)
+    for method_name, class_name, args_str, sig in zip(native_names, class_names, args_strings, native_signatures):
+        jni_descs = apk_analyzer.find_native_implementations(method_name, class_name, args_str, lib_whitelist=interesting_libs)
         for jni_desc in jni_descs:
             native_methods.append(
                 NativeMethod(
@@ -150,9 +156,9 @@ if __name__ == "__main__":
                     libpath=jni_desc.analyzer.libpath,
                     libhash=jni_desc.analyzer.libhash,
                     jni_desc=jni_desc,
-                    method_name=name,
+                    method_name=method_name,
                     offset=jni_desc.offset,
-                    path=paths_result["paths"][native_signatures[i]]))
+                    path=paths_result["paths"][sig]))
     log.info(f"found {len(native_methods)} methods")
 
     native_methods_id_in_supergraph = list(

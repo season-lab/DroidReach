@@ -208,8 +208,8 @@ class APKAnalyzer(object):
     def get_libname_from_hash(self, lib_hash):
         return os.path.basename(self.get_libpath_from_hash(lib_hash))
 
-    def find_native_implementations(self, method_name, lib_whitelist=None):
-        APKAnalyzer.log.info(f"looking for native implementation of {method_name}")
+    def find_native_implementations(self, method_name, class_name, args_str, lib_whitelist=None):
+        APKAnalyzer.log.info(f"looking for native implementation of {method_name} of class {class_name}")
         native_libs = self._analyze_native_libs()
         res = list()
         for lib in native_libs:
@@ -217,7 +217,10 @@ class APKAnalyzer(object):
                 continue
             jni_functions = native_libs[lib].get_jni_functions()
             for jni_desc in jni_functions:
-                if jni_desc.method_name == method_name:
+                if (jni_desc.method_name == method_name) and                               \
+                   (jni_desc.class_name == "???" or jni_desc.class_name == class_name) and \
+                   (jni_desc.args == "???" or jni_desc.args == args_str):
+
                     res.append(jni_desc)
 
         APKAnalyzer.log.info(f"native implementation: {res}")
