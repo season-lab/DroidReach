@@ -37,7 +37,7 @@ def setup_logging():
 def get_supergraph_id(libhash, off):
     return f"{libhash}_{off:x}"
 
-def get_supergraph(native_dep_g, *callgraphs):
+def get_supergraph_naive(native_dep_g, *callgraphs):
     g = nx.DiGraph()
 
     libhashes = set()
@@ -69,6 +69,82 @@ def get_supergraph(native_dep_g, *callgraphs):
             continue
 
         g.add_edge(supergraph_src, supergraph_dst)
+    return g
+
+def get_supergraph(native_dep_g, jni_methods, *callgraphs):
+    # Get only the connected components with the JNI Methods
+
+    g = nx.DiGraph()
+
+    callgraph_dict = dict()
+    for cg in callgraphs:
+        callgraph_dict[cg.libhash] = cg.graph
+
+    jni_method_ids = list()
+    for jni_method in jni_methods:
+        supergraph_id = get_supergraph_id(jni_method.libhash, jni_method.offset)
+        jni_method_ids.append(supergraph_id)
+        g.add_node(
+            supergraph_id,
+            libhash=jni_method.libhash,
+            fname=jni_method.method_name,
+            addr=jni_method.offset)
+
+    visited = set()
+    stack   = jni_method_ids
+    while stack:
+        el = stack.pop()
+        if el in visited:
+            continue
+        visited.add(el)
+
+        libhash, off = el.split("_")
+        off = int(off, 16)
+
+        # collect and add direct successor in callgraph
+        cg = callgraph_dict[libhash]
+        succ_in_cg = cg.successors(off)
+        for succ in succ_in_cg:
+            succ_data = cg.nodes[succ]["data"]
+            succ_id = get_supergraph_id(libhash, succ)
+            if succ_id not in g.nodes:
+                g.add_node(
+                    succ_id,
+                    libhash=libhash,
+                    fname=succ_data.name,
+                    addr=succ)
+            g.add_edge(el, succ_id)
+
+            stack.append(succ_id)
+
+        # collect direct successors in dependency graph
+        succ_in_dep_g = list()
+        for _, dst_lib, data in native_dep_g.out_edges(libhash, data=True):
+            src_off = data["src_off"]
+            dst_off = data["dst_off"]
+            if src_off == off:
+                succ_in_dep_g.append(
+                    get_supergraph_id(dst_lib, dst_off))
+
+        # add direct successors in dependency graph
+        for succ_id in succ_in_dep_g:
+            succ_lib, succ_off = succ_id.split("_")
+            succ_off = int(succ_off, 16)
+            if succ_lib not in callgraph_dict:
+                # I know from the dependency graph that
+                # this edge CANNOT reach a sink library
+                continue
+            cg = callgraph_dict[succ_lib]
+            succ_data = cg.nodes[succ_off]["data"]
+            if succ_id not in g.nodes:
+                g.add_node(
+                    succ_id,
+                    libhash=succ_lib,
+                    fname=succ_data.name,
+                    addr=succ_off)
+            g.add_edge(el, succ_id)
+
+            stack.append(succ_id)
     return g
 
 def get_method_from_supergraph_id(supergraph_id, methods):
@@ -132,20 +208,6 @@ if __name__ == "__main__":
     # interesting_libs = { h for h in lib_dep_g.nodes }
     log.info(f"found {len(interesting_libs)} interesting libraries")
 
-    log.info(f"building callgraphs for {len(interesting_libs)} libs")
-    callgraphs = list()
-    for lib_hash in interesting_libs:
-        cg = cex.get_callgraph(apk_analyzer.get_libpath_from_hash(lib_hash), plugins=["Ghidra"])
-        callgraphs.append(Callgraph(libhash=lib_hash, graph=cg))
-
-    log.info("building supergraph")
-    libs_supergraph = get_supergraph(lib_dep_g, *callgraphs).reverse()
-    log.info(f"supergraph ({libs_supergraph.number_of_nodes()} nodes, {libs_supergraph.number_of_edges()} edges) built")
-
-    callgraphs = None
-    cex.clear_plugins_cache()  # free some RAM
-    gc.collect()
-
     log.info("finding mapping between native methods and implementation")
     native_methods = list()
     for method_name, class_name, args_str, sig in zip(native_names, class_names, args_strings, native_signatures):
@@ -161,6 +223,20 @@ if __name__ == "__main__":
                     offset=jni_desc.offset,
                     path=paths_result["paths"][sig]))
     log.info(f"found {len(native_methods)} methods")
+
+    log.info(f"building callgraphs for {len(interesting_libs)} libs")
+    callgraphs = list()
+    for lib_hash in interesting_libs:
+        cg = cex.get_callgraph(apk_analyzer.get_libpath_from_hash(lib_hash), plugins=["Ghidra"])
+        callgraphs.append(Callgraph(libhash=lib_hash, graph=cg))
+
+    log.info("building supergraph")
+    libs_supergraph = get_supergraph(lib_dep_g, native_methods, *callgraphs).reverse()
+    log.info(f"supergraph ({libs_supergraph.number_of_nodes()} nodes, {libs_supergraph.number_of_edges()} edges) built")
+
+    callgraphs = None
+    cex.clear_plugins_cache()  # free some RAM
+    gc.collect()
 
     native_methods_id_in_supergraph = list(
         map(lambda x: get_supergraph_id(x.libhash, x.offset), native_methods))
@@ -178,6 +254,10 @@ if __name__ == "__main__":
             src_id = get_supergraph_id(vuln_lib_hash, vuln_offset)
 
             log.info(f"checking path to {vuln_offset:#x} @ {vuln_libname}")
+            if not libs_supergraph.has_node(src_id):
+                log.info("path not found (node outside supergraph)")
+                continue
+
             path = next(nx.all_simple_paths(libs_supergraph, src_id, native_methods_id_in_supergraph), None)
             if path is not None:
                 print(f"[!] Found potentially vulnerable path to {vuln_offset:#x} @ {vuln_libname}")
