@@ -117,7 +117,9 @@ class APKAnalyzer(object):
                 if s not in self.callgraph.nodes or t not in self.callgraph.nodes:
                     continue
                 if nx.has_path(self.callgraph, source=s, target=t):
-                    link = next(nx.all_simple_paths(self.callgraph, source=s, target=t))
+                    link = next(nx.all_simple_paths(self.callgraph, source=s, target=t), None)
+                    if link is None:
+                        continue  # Strange!
                     paths[t] = link
                     break
         APKAnalyzer.log.info(f"found {len(paths)} paths")
