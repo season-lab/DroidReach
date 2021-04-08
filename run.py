@@ -258,7 +258,10 @@ if __name__ == "__main__":
                 log.info("path not found (node outside supergraph)")
                 continue
 
-            path = next(nx.all_simple_paths(libs_supergraph, src_id, native_methods_id_in_supergraph), None)
+            if src_id in native_methods_id_in_supergraph:
+                path = [src_id]
+            else:
+                path = next(nx.all_simple_paths(libs_supergraph, src_id, native_methods_id_in_supergraph), None)
             if path is not None:
                 print(f"[!] Found potentially vulnerable path to {vuln_offset:#x} @ {vuln_libname}")
                 log.info("path found")
