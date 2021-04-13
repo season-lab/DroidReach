@@ -42,6 +42,8 @@ class NativeLibAnalyzer(object):
             self.arch = "arm64-v8a"
         elif "/x86/" in libpath:
             self.arch = "x86"
+        elif "/x86_64/" in libpath:
+            self.arch = "x86_64"
         else:
             rz = self._open_rz()
             self.arch = rz.cmdj("iIj")["arch"]
@@ -56,7 +58,7 @@ class NativeLibAnalyzer(object):
 
     __repr__ = __str__
 
-    def _get_ghidra_cmd(self):
+    def _get_ghidra_detect_jni_cmd(self):
         proj_path = self.ghidra.get_project_path(self.libpath)
         proj_dir  = os.path.dirname(proj_path)
         proj_name = os.path.basename(proj_path)
@@ -124,7 +126,7 @@ class NativeLibAnalyzer(object):
             NativeLibAnalyzer.log.info("not a JNI lib")
             return self._jni_functions
 
-        cmd = self._get_ghidra_cmd()
+        cmd = self._get_ghidra_detect_jni_cmd()
         methods_raw = subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
         methods_raw = methods_raw.decode("ASCII")
         for line in methods_raw.split("\n"):

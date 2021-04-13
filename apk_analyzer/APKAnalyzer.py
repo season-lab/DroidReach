@@ -158,17 +158,17 @@ class APKAnalyzer(object):
         native_lib_analysis = self._analyze_native_libs()
         APKAnalyzer.log.info(f"building dependency graph on {len(native_lib_analysis)} libraries")
 
-        lib_analisys_per_arch = dict()
+        lib_analysis_per_arch = dict()
         for libname in native_lib_analysis:
             a = native_lib_analysis[libname]
-            if a.arch not in lib_analisys_per_arch:
-                lib_analisys_per_arch[a.arch] = list()
-            lib_analisys_per_arch[a.arch].append(a)
+            if a.arch not in lib_analysis_per_arch:
+                lib_analysis_per_arch[a.arch] = list()
+            lib_analysis_per_arch[a.arch].append(a)
 
-        APKAnalyzer.log.info(f"dependency graph clustered in {len(lib_analisys_per_arch)} archs")
+        APKAnalyzer.log.info(f"dependency graph clustered in {len(lib_analysis_per_arch)} archs")
         g = nx.MultiDiGraph()
-        for arch in lib_analisys_per_arch:
-            libs_a = lib_analisys_per_arch[arch]
+        for arch in lib_analysis_per_arch:
+            libs_a = lib_analysis_per_arch[arch]
 
             for a_src in libs_a:
                 if a_src.libhash not in g.nodes:
@@ -183,7 +183,6 @@ class APKAnalyzer(object):
                                 g.add_node(a_dst.libhash, path=a_dst.libpath, analyzer=a_dst)
                             g.add_edge(a_src.libhash, a_dst.libhash, fun=fun_src.name,
                                 src_off=fun_src.offset, dst_off=fun_dst.offset)
-                            break
 
         APKAnalyzer.log.info(f"returning dependency graph with {g.number_of_edges()} edges")
         self.lib_dep_graph = g
