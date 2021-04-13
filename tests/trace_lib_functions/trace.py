@@ -48,10 +48,12 @@ if __name__ == "__main__":
         try:
             input()
         except EOFError:
+            print("getting data from Frida...")
             data = script.exports.modinfo()
-            print("output data in", LOGFILE)
+            print("writing output data in", LOGFILE, "...")
             with open(LOGFILE, "w") as fout:
                 fout.write(data)
+            print("done")
             break
 
     process.detach()
