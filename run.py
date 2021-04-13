@@ -179,6 +179,9 @@ if __name__ == "__main__":
     apk_analyzer = APKAnalyzer(cex, apk_path)
     paths_result = apk_analyzer.get_paths_to_native()
 
+    # Use accurate callgraph
+    cex.pm.get_plugin_by_name("Ghidra").use_accurate = True
+
     apk_analyzer.delete_callgraph()  # free some RAM
     gc.collect()
 
