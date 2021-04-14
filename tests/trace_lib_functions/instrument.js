@@ -93,7 +93,7 @@ rpc.exports = {
         Object.keys(modules_info).forEach(
             libname => {
                 if (libname in module_map) {
-                    data += libname + "(" + module_map[libname].path + ") :\n";
+                    data += libname + " (" + module_map[libname].path + ") :\n";
                     Object.keys(modules_info[libname].functions).forEach(
                         fname => {
                             var fdata = modules_info[libname].functions[fname];
