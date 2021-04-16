@@ -34,19 +34,25 @@ function instrumentLibrary(libname) {
                 modules_info[libname].functions[e.name].n_called  = 0;
                 modules_info[libname].functions[e.name].backtrace = 0;
 
-                Interceptor.attach(e.address, {
-                    onEnter(args) {
-                        // console.log("[ " +  libname + " ] : " + e.name + " called");
-                
-                        modules_info[libname].functions[e.name].n_called += 1;
-                        if (modules_info[libname].functions[e.name].backtrace == "") {
-                            // keep only a single backtrace
-                            var backtrace = Thread.backtrace(this.context, Backtracer.ACCURATE)
-                                                  .map(DebugSymbol.fromAddress).join('\n');
-                            modules_info[libname].functions[e.name].backtrace = backtrace;
+                try {
+                    Interceptor.attach(e.address, {
+                        onEnter(args) {
+                            // console.log("[ " +  libname + " ] : " + e.name + " called");
+                            // console.log(Thread.backtrace(this.context, Backtracer.ACCURATE)
+                            //                   .map(DebugSymbol.fromAddress).join('\n'));
+
+                            modules_info[libname].functions[e.name].n_called += 1;
+                            if (modules_info[libname].functions[e.name].backtrace == "") {
+                                // keep only a single backtrace
+                                var backtrace = Thread.backtrace(this.context, Backtracer.ACCURATE) // Backtracer.FUZZY
+                                                    .map(DebugSymbol.fromAddress).join('\n');
+                                modules_info[libname].functions[e.name].backtrace = backtrace;
+                            }
                         }
-                    }
-                });
+                    });
+                } catch (err) {
+                    console.log("Unable to intercept function " + e.name + " @ " + e.address);
+                }
             }
         },
         onComplete: function() {

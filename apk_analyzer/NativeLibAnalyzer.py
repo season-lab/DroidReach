@@ -44,6 +44,10 @@ class NativeLibAnalyzer(object):
             self.arch = "x86"
         elif "/x86_64/" in libpath:
             self.arch = "x86_64"
+        elif "/mips/" in libpath:
+            self.arch = "mips"
+        elif "/mips64/" in libpath:
+            self.arch = "mips64"
         else:
             rz = self._open_rz()
             self.arch = rz.cmdj("iIj")["arch"]
