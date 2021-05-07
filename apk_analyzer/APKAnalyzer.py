@@ -7,7 +7,7 @@ import networkx as nx
 from shutil import copyfile
 from collections import namedtuple
 from androguard.misc import AnalyzeAPK
-from .JavaNameDemangler import JavaNameDemangler
+from .JavaNameDemangler import JavaNameDemangler, FailedDemanglingError
 from .NativeLibAnalyzer import NativeLibAnalyzer
 from .utils import md5_hash, get_native_methods
 from .utils.app_component import AppComponent
@@ -198,6 +198,10 @@ class APKAnalyzer(object):
                 self.cex, lib)
         return self._native_lib_analysis
 
+    def get_analyzed_libs(self):
+        self._analyze_native_libs()
+        return list(self._native_lib_analysis.values())
+
     def get_libpath_from_hash(self, lib_hash):
         self._analyze_native_libs()
         for lib_path in self._native_lib_analysis:
@@ -226,3 +230,23 @@ class APKAnalyzer(object):
 
         APKAnalyzer.log.info(f"native implementation: {res}")
         return res
+
+    def demangle(self, class_name, method_name, arg_str):
+        try:
+            return self._jvm_demangler.method_signature_demangler(class_name, method_name, arg_str)
+        except FailedDemanglingError:
+            return None
+
+    def find_native_methods(self):
+        native_signatures = get_native_methods(self.analysis, public_only=False)
+        native_names = list(map(
+            lambda x: x.split(";->")[1].split("(")[0],
+            native_signatures))
+        class_names  = list(map(
+            lambda x: "L" + x.split(" L")[1].split(";->")[0] + ";",
+            native_signatures))
+        args_strings = list(map(
+            lambda x: "(" + x.split("(")[1].split(" ")[0],
+            native_signatures))
+
+        return list(zip(class_names, native_names, args_strings))

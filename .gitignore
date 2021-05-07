@@ -1,6 +1,7 @@
 venv/
 .vscode/
 samples/
+tests/*.csv
 
 *.class
 *.pyc
