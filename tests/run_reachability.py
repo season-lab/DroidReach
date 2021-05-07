@@ -1,6 +1,7 @@
 import rzpipe
 import angr
 import sys
+import gc
 import os
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -55,10 +56,12 @@ def getNodesGhidra(libpath, addr):
     return nodes
 
 def run(libpath):
-    proj     = angr.Project(libpath, auto_load_libs=False)
     exported = getExported(libpath)
 
     for funaddr in exported:
+        gc.collect()
+
+        proj    = angr.Project(libpath, auto_load_libs=False)
         funaddr = funaddr + 0x400000
         print_stderr("Processing %#x" % funaddr)
         try:
@@ -66,6 +69,9 @@ def run(libpath):
             nodesGhidra = getNodesGhidra(libpath, funaddr)
         except TimeoutError:
             print_stderr("Timeout expired on %#x" % funaddr)
+            continue
+        except:
+            print_stderr("Unknown error")
             continue
 
         print("%#x, %d, %d" % (funaddr, len(nodesAngr), len(nodesGhidra)))

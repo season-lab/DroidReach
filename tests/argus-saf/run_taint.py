@@ -5,9 +5,6 @@ from nativedroid.jawa.utils import *
 
 SCRIPTDIR = os.path.realpath(os.path.dirname(__file__))
 
-NATIVELEAK_PATH    = os.path.join(SCRIPTDIR, "nativeleak/libleak.so")
-LIBAVIARY_ARM_PATH = os.path.join(SCRIPTDIR, "libaviary/libaviary_native.so")
-LIBJNIPDFIUM_PATH  = os.path.join(SCRIPTDIR, "libpdfium/libjniPdfium.so")
 NATIVE_SS_FILE     = os.path.join(SCRIPTDIR, "/tmp/nativeSs.txt")
 JAVA_SS_FILE       = os.path.join(SCRIPTDIR, "javaSs.txt")
 
@@ -30,30 +27,52 @@ if __name__ == "__main__":
     signature = "Lorg/arguslab/native_leak/MainActivity;.send:(Ljava/lang/String;)V"
     arguments = "org.arguslab.native_leak.MainActivity,java.lang.String"
     address   = "Java_org_arguslab_native_1leak_MainActivity_send"
+    so_path   = os.path.join(SCRIPTDIR, "nativeleak/libleak.so")
 
     mkSink(["__android_log_print"])
-    print run_nativedroid(NATIVELEAK_PATH, address, signature, arguments)
+    print run_nativedroid(so_path, address, signature, arguments)
     # "Lorg/arguslab/native_leak/MainActivity;.send:(Ljava/lang/String;)V -> _SINK_ 1"
-
 
     # *** libaviary ***
     signature = "Lcom/aviary/android/feather/headless/filters/NativeToolFilter;.nativeCtor:(Ljava/lang/String;)J"
     arguments = "com.aviary.android.feather.headless.filters.NativeToolFilter,android.content.Context,java.lang.String"
     address   = long(0x834b0)
+    so_path   = os.path.join(SCRIPTDIR, "libaviary/libaviary_native.so")
 
     mkSink(["strcmp"])
-    print run_nativedroid(LIBAVIARY_ARM_PATH, address, signature, arguments)
+    print run_nativedroid(so_path, address, signature, arguments)
     # "Lcom/aviary/android/feather/headless/filters/NativeToolFilter;.nativeCtor:(Ljava/lang/String;)J -> _SINK_ 1"
 
     mkSink(["_ZN3moa12MoaJavaToolsC1E11MoaToolType"])
-    print run_nativedroid(LIBAVIARY_ARM_PATH, address, signature, arguments)
+    print run_nativedroid(so_path, address, signature, arguments)
     # ""
 
     # *** libjniPdfium ***
-    signature = "Lcom/shockwave/pdfium/PdfiumCore;->nativeLoadPages(JII)[J"
-    arguments = "com/shockwave/pdfium/PdfiumCore,android.content.Context,long,int,int"
+    signature = "Lcom/shockwave/pdfium/PdfiumCore;.nativeLoadPages:(JII)[J"
+    arguments = "com.shockwave.pdfium.PdfiumCore,android.content.Context,long,int,int"
     address   = long(0x3a74)
+    so_path   = os.path.join(SCRIPTDIR, "libpdfium/libjniPdfium.so")
 
     mkSink(["FPDF_LoadPage"])
-    print run_nativedroid(LIBJNIPDFIUM_PATH, address, signature, arguments)
+    print run_nativedroid(so_path, address, signature, arguments)
+    # ""
+
+    # *** calldepth_3 ***
+    signature = "Lcom/borza/increasing_calldepth/MainActivity;.send:(Ljava/lang/String;)V"
+    arguments = "com.borza.increasing_calldepth.MainActivity,android.content.Context,java.lang.String"
+    address   = long(0x5f8)
+    so_path   = os.path.join(SCRIPTDIR, "calldepth_3/libnative-lib.so")
+
+    mkSink(["__android_log_print"])
+    print run_nativedroid(so_path, address, signature, arguments)
+    # ""
+
+    # *** leak_copy ***
+    signature = "Lcom/borza/increasing_calldepth/MainActivity;.send:(Ljava/lang/String;)V"
+    arguments = "com.borza.increasing_calldepth.MainActivity,android.content.Context,java.lang.String"
+    address   = long(0x5f8)
+    so_path   = os.path.join(SCRIPTDIR, "leak_copy/libnative-lib.so")
+
+    mkSink(["__android_log_print"])
+    print run_nativedroid(so_path, address, signature, arguments)
     # ""
