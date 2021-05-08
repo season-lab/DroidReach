@@ -10,7 +10,7 @@ def usage():
     exit(1)
 
 def build_args(class_name, args):
-    return class_name + ",android.content.Context," + args
+    return class_name + ",android.content.Context," + args.replace(" ", "")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -31,7 +31,9 @@ if __name__ == "__main__":
     for native_method in native_methods:
         class_name, method_name, arg_str = native_method
         demangled_name = apka.demangle(class_name, method_name, arg_str)
-        assert demangled_name is not None
+        if demangled_name is None:
+            print("Unable to demangle", class_name, method_name, arg_str, native_method)
+            continue
 
         demangled_class_name = demangled_name[:demangled_name.find(":")]
         demangled_args = demangled_name[demangled_name.find("(")+1:demangled_name.find(")")]
@@ -48,4 +50,4 @@ if __name__ == "__main__":
         if native_addr is None:
             continue
 
-        print(build_args(demangled_class_name, demangled_args), native_lib, hex(native_addr))
+        print(method_name, build_args(demangled_class_name, demangled_args), native_lib, hex(native_addr))

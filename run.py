@@ -194,7 +194,7 @@ if __name__ == "__main__":
         lambda x: x.split(" L")[1].split(";->")[0].replace("/", "."),
         native_signatures))
     args_strings      = list(map(
-        lambda x: "(" + x.split("(")[1].split(" ")[0],
+        lambda x: "(" + x.split("(")[1].split(" [access")[0],
         native_signatures))
     log.info(f"found {len(native_names)} native functions (java)")
 

@@ -42,7 +42,6 @@ if __name__ == "__main__":
     so_path = sys.argv[1]
     addr    = int(sys.argv[2]) if not sys.argv[2].startswith("0x") else int(sys.argv[2], 16)
     args    = sys.argv[3]
-    proj    = angr.Project(
-        so_path, load_options={'main_opts': {'custom_base_addr': 0x0}})
+    proj    = angr.Project(so_path)
 
-    print(checkTaintedLoads(proj, addr, args))
+    print checkTaintedLoads(proj, addr, args)
