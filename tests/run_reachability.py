@@ -27,20 +27,22 @@ def getExported(libpath):
     return res
 
 @timeout(60*15)
-def getNodesCfgAngr(proj, addr):
+def getInstructionsCfgAngr(proj, addr):
     state = proj.factory.blank_state(mode="fastpath")
     cfg = proj.analyses.CFGEmulated(fail_fast=True, starts=[addr],
         initial_state=state, context_sensitivity_level=1,
         keep_state=True, normalize=True, call_depth=5)
 
-    nodes = set()
+    res = set()
     for node in cfg.graph.nodes:
-        nodes.add(node.addr)
-    return nodes
+        for addr in node.instruction_addrs:
+            res.add(addr)
+    return res
 
 cex = CEX()
+cex.pm.get_plugin_by_name("Ghidra").use_accurate = True
 @timeout(60*15)
-def getNodesGhidra(libpath, addr):
+def getInstructionsGhidra(libpath, addr):
     cg = cex.get_callgraph(libpath, entry=addr, plugins=["Ghidra"])
 
     cfgs = list()
@@ -49,11 +51,41 @@ def getNodesGhidra(libpath, addr):
         if cfg is not None:
             cfgs.append(cfg)
 
-    nodes = set()
+    res = set()
     for cfg in cfgs:
         for addr in cfg.nodes:
-            nodes.add(addr)
-    return nodes
+            data = cfg.nodes[addr]["data"]
+            for insn in data.insns:
+                res.add(insn.addr)
+    return res
+
+def angrCfgDot(proj, addr):
+    state = proj.factory.blank_state(mode="fastpath")
+    cfg = proj.analyses.CFGEmulated(fail_fast=True, starts=[addr],
+        initial_state=state, context_sensitivity_level=1,
+        keep_state=True, normalize=True, call_depth=5)
+
+    res  = "digraph {\n\tnode [shape=box];\n"
+    res += "\tgraph [fontname = \"monospace\"];\n"
+    res += "\tnode  [fontname = \"monospace\"];\n"
+    res += "\tedge  [fontname = \"monospace\"];\n"
+
+    for node in cfg.graph.nodes():
+        res += "\t%d [label = \"%s\"];\n" % (node.addr, hex(node.addr))
+
+    added_edges = set()
+    for src, dst in cfg.graph.edges():
+        if (src.addr, dst.addr) in added_edges:
+            continue
+        added_edges.add((src.addr, dst.addr))
+        res += "\t%d -> %d\n" % (src.addr, dst.addr)
+
+    res += "}\n"
+    return res
+
+def ghidraCfgDot(libpath, addr):
+    g = cex.get_icfg(libpath, addr, plugins=["Ghidra"])
+    return CEX.to_dot(g)
 
 def run(libpath):
     exported = getExported(libpath)
@@ -65,8 +97,8 @@ def run(libpath):
         funaddr = funaddr + 0x400000
         print_stderr("Processing %#x" % funaddr)
         try:
-            nodesAngr   = getNodesCfgAngr(proj, funaddr)
-            nodesGhidra = getNodesGhidra(libpath, funaddr)
+            nodesAngr   = getInstructionsCfgAngr(proj, funaddr)
+            nodesGhidra = getInstructionsGhidra(libpath, funaddr)
         except TimeoutError:
             print_stderr("Timeout expired on %#x" % funaddr)
             continue
@@ -77,4 +109,31 @@ def run(libpath):
         print("%#x, %d, %d" % (funaddr, len(nodesAngr), len(nodesGhidra)))
 
 if __name__ == "__main__":
-    run(LIBPDFIUM_PATH)
+    if len(sys.argv) > 1:
+        # dbg mode
+        proj  = angr.Project(LIBPDFIUM_PATH, auto_load_libs=False)
+        addr  = int(sys.argv[1], 16)
+
+        instructions_angr = getInstructionsCfgAngr(proj, addr)
+        instructions_ghidra = getInstructionsGhidra(LIBPDFIUM_PATH, addr)
+
+        only_angr = instructions_angr - instructions_ghidra
+        only_ghidra = instructions_ghidra - instructions_angr
+
+        print("Only angr:")
+        for a in only_angr:
+            print("  %#x" % a)
+
+        print("Only ghidra:")
+        for a in only_ghidra:
+            print("  %#x" % a)
+
+        dot_angr   = angrCfgDot(proj, addr)
+        with open("/dev/shm/angr_graph.dot", "w") as fout:
+            fout.write(dot_angr)
+
+        import subprocess
+        subprocess.Popen(["xdot", "/dev/shm/angr_graph.dot"])
+
+    else:
+        run(LIBPDFIUM_PATH)
