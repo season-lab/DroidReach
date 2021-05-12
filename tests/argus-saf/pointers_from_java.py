@@ -68,6 +68,7 @@ def checkTaintedLoads(proj, addr, args):
             for s in smgr.active:
                 print s
                 s.block().pp()
+                raw_input()
 
         smgr.explore(n=1)
         if DEBUG: print smgr, smgr.errored, tainted_load
