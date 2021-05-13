@@ -4,9 +4,9 @@ import logging
 import subprocess
 
 try:
-    from .utils import md5_hash
+    from .utils import md5_hash, find_jni_functions_angr
 except:
-    from utils import md5_hash
+    from utils import md5_hash, find_jni_functions_angr
 from collections import namedtuple
 JniFunctionDescription = namedtuple("JniFunctionDescription", ["analyzer", "class_name", "method_name", "args", "offset"])
 FunctionDescription = namedtuple("FunctionDescription", ["name", "offset", "is_exported"])
@@ -30,9 +30,10 @@ class NativeLibAnalyzer(object):
     def _open_rz(self):
         return rzpipe.open(self.libpath, flags=["-2"])
 
-    def __init__(self, cex, libpath, use_rizin=False):
+    def __init__(self, cex, libpath, use_rizin=False, use_angr=False):
         self.use_rizin = use_rizin
         self.cex = cex
+        self.use_angr = use_angr
         if use_rizin or cex is None:
             self.use_rizin   = True
             self.ghidra = None
@@ -287,6 +288,23 @@ class NativeLibAnalyzer(object):
             self._get_jni_functions_ghidra()
         else:
             self._get_jni_functions_rizin()
+
+        if self.use_angr:
+            found_methods = set()
+            for m in self._jni_functions:
+                found_methods.add(m.method_name)
+
+            jni_angr = find_jni_functions_angr(self.libpath)
+            for class_name, method_name, args, addr in jni_angr:
+                if method_name not in found_methods:
+                    print ("Method", method_name, "found only by angr")
+                    self._jni_functions.append(
+                        JniFunctionDescription(
+                            analyzer=self,
+                            class_name=class_name,
+                            method_name=method_name,
+                            args=args.replace(" ", ""),
+                            offset=addr))
         return self._jni_functions
 
 if __name__ == "__main__":

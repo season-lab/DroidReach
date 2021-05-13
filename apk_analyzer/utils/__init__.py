@@ -4,6 +4,7 @@ import re
 from androguard.core.analysis.analysis import Analysis
 from networkx.classes.reportviews import NodeView
 
+from .angr_find_dynamic_jni import find_jni_functions_angr
 
 def reformat_comp(raw_comp: str):
     """
