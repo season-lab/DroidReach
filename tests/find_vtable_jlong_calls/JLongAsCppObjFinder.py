@@ -79,6 +79,9 @@ class JLongAsCppObjFinder(object):
             else:
                 data = claripy.BVS("int_arg_%d" % arg_id, self.project.arch.bits)
 
+            if data.size() < self.project.arch.bits:
+                data = data.zero_extend(self.project.arch.bits - data.size())
+
             if arg_id < 3:
                 state.regs.__setattr__('r%d' % arg_id, data)
             else:

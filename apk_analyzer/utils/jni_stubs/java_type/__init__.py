@@ -68,23 +68,23 @@ def get_type_size(project, java_type):
     """
 
     arch_bits = project.arch.bits
-    ptr_size = arch_bits // 4
+    byte_size = 8
     if java_type == 'boolean':
-        return ptr_size * 1
+        return byte_size * 1
     elif java_type == 'byte':
-        return ptr_size * 1
+        return byte_size * 1
     elif java_type == 'char':
-        return ptr_size * 2
+        return byte_size * 2
     elif java_type == 'short':
-        return ptr_size * 2
+        return byte_size * 2
     elif java_type == 'int':
-        return ptr_size * 4
+        return byte_size * 4
     elif java_type == 'long':
-        return ptr_size * 8
+        return byte_size * 8 if arch_bits > 32 else byte_size * 4
     elif java_type == 'float':
-        return ptr_size * 4
+        return byte_size * 4
     elif java_type == 'double':
-        return ptr_size * 8
+        return byte_size * 8 if arch_bits > 32 else byte_size * 4
     elif java_type == 'void':
         return arch_bits
     elif java_type == 'java.lang.Class':

@@ -30,7 +30,7 @@ class NativeLibAnalyzer(object):
     def _open_rz(self):
         return rzpipe.open(self.libpath, flags=["-2"])
 
-    def __init__(self, cex, libpath, use_rizin=False, use_angr=False):
+    def __init__(self, cex, libpath, use_rizin=False, use_angr=True):
         self.use_rizin = use_rizin
         self.cex = cex
         self.use_angr = use_angr
