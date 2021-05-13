@@ -70,6 +70,14 @@ def dynamic_register_resolve(project, analysis_center):
         return cfg, analysis_center.get_dynamic_register_map()
 
 def find_jni_functions_angr(binary):
+    # angr, shut the fuck up
+    angr_logger = logging.getLogger('angr')
+    angr_logger.propagate = False
+    cle_logger  = logging.getLogger('cle')
+    cle_logger.propagate = False
+    nativedroid_logger = logging.getLogger('nativedroid')
+    nativedroid_logger.propagate = False
+
     analysis_center = AnalysisCenter("", None, None)
     project = angr.Project(binary)
 

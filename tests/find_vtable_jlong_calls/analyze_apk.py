@@ -5,8 +5,10 @@ import os
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 from apk_analyzer import APKAnalyzer
 from cex.cex import CEX
-
-ptr_from_java = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../argus-saf/run_pointers_from_java.sh")
+try:
+    from .JLongAsCppObjFinder import JLongAsCppObjFinder
+except:
+    from JLongAsCppObjFinder import JLongAsCppObjFinder
 
 def usage():
     print("USAGE: %s <apk_path>" % sys.argv[0])
@@ -15,7 +17,10 @@ def usage():
 def print_stderr(*msg):
     sys.stderr.write(" ".join(msg) + "\n")
 
-def does_it_use_jlong_as_ptr(lib, arguments):
+def does_it_use_jlong_as_ptr_angr7(lib, arguments):
+    # OLD FUNCTION: used only to check consistency with angr7
+    ptr_from_java = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../argus-saf/run_pointers_from_java.sh")
+
     filtered_arguments = list()
     filtered_indexes   = list()
 
@@ -53,6 +58,20 @@ def does_it_use_jlong_as_ptr(lib, arguments):
 
     return out
 
+def does_it_use_jlong_as_ptr(lib, arguments):
+    of  = JLongAsCppObjFinder(lib)
+    res = list()
+
+    for addr, args in arguments:
+        if isinstance(addr, str):
+            addr = int(addr, 16) if addr.startswith("0x") else int(addr)
+        if "long" not in args:
+            res.append(False)
+            continue
+        res.append(of.check(addr, args))
+
+    return res
+
 def build_args(class_name, args):
     return args.replace(" ", "")
 
@@ -63,7 +82,7 @@ if __name__ == "__main__":
     apk_path = sys.argv[1]
 
     # cex  = CEX()
-    cex  = None
+    cex  = None  # Use Rizin for finding JNI functions (faster, but probably less accurate)
     apka = APKAnalyzer(cex, apk_path)
 
     added_libs = set()

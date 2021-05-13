@@ -68,7 +68,7 @@ def get_type_size(project, java_type):
     """
 
     arch_bits = project.arch.bits
-    ptr_size = arch_bits / 4
+    ptr_size = arch_bits // 4
     if java_type == 'boolean':
         return ptr_size * 1
     elif java_type == 'byte':
