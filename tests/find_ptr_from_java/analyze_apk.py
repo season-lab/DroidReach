@@ -15,14 +15,43 @@ def usage():
 def print_stderr(*msg):
     sys.stderr.write(" ".join(msg) + "\n")
 
-def does_it_use_jlong_as_ptr(lib, addr, args):
-    if "long" not in args:
+def does_it_use_jlong_as_ptr(lib, arguments):
+    filtered_arguments = list()
+    filtered_indexes   = list()
+
+    i = 0
+    for addr, args in arguments:
+        if "long" in args:
+            filtered_arguments.append(addr)
+            filtered_arguments.append("\"" + args + "\"")
+            filtered_indexes.append(i)
+        i += 1
+
+    if len(filtered_arguments) == 0:
         return False
 
-    out = subprocess.check_output(
-        [ptr_from_java, lib, addr, args]
+    # print("running: ", " ".join([ptr_from_java, lib] + filtered_arguments))
+
+    tmp = subprocess.check_output(
+        [ptr_from_java, lib] + filtered_arguments
     )
-    return b"true" in out.lower()
+
+    # FIXME: I feel ashemed looking at this code
+    tmp = list(
+        map(
+            lambda x: "true" in x.lower(),
+            filter(
+                lambda x: x.lower() in {"true", "false"},
+                map(
+                    lambda x: x.strip(),
+                        tmp.decode("ASCII").strip().split("\n")))))
+    assert len(tmp) == len(filtered_arguments) // 2
+
+    out = list(map(lambda _: "False", range(0, len(arguments))))
+    for i, j in enumerate(filtered_indexes):
+        out[j] = tmp[i]
+
+    return out
 
 def build_args(class_name, args):
     return args.replace(" ", "")
@@ -33,7 +62,8 @@ if __name__ == "__main__":
 
     apk_path = sys.argv[1]
 
-    cex  = CEX()
+    # cex  = CEX()
+    cex  = None
     apka = APKAnalyzer(cex, apk_path)
 
     added_libs = set()
@@ -56,6 +86,7 @@ if __name__ == "__main__":
         exit(0)
 
     print_stderr("[INFO]", "found %d native methods and %d armv7 libs" % (len(native_methods), len(arm_libs)))
+    clustered_methods = dict()
     for native_method in native_methods:
         class_name, method_name, arg_str = native_method
         demangled_name = apka.demangle(class_name, method_name, arg_str)
@@ -76,11 +107,28 @@ if __name__ == "__main__":
                 native_lib  = native_impl.analyzer.libpath
                 break
         if native_addr is None:
+            print("No native implementation for", native_method)
             continue
 
         lib  = native_lib
         addr = hex(native_addr)
         args = build_args(demangled_class_name, demangled_args)
 
+        if lib not in clustered_methods:
+            clustered_methods[lib] = list()
+        clustered_methods[lib].append((demangled_name, addr, args))
+
+    for native_lib in clustered_methods:
         print(native_lib)
-        print(demangled_name, "@", addr, ":", does_it_use_jlong_as_ptr(lib, addr, args))
+        arguments = clustered_methods[native_lib]
+
+        args  = list()
+        addrs = list()
+        names = list()
+        for name, addr, a in arguments:
+            args.append((addr, a))
+            names.append(name)
+            addrs.append(addr)
+
+        for name, addr, jlong_as_ptr in zip(names, addrs, does_it_use_jlong_as_ptr(native_lib, args)):
+            print(name, "@", addr, ":", jlong_as_ptr)

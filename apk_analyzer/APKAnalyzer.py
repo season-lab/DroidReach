@@ -246,7 +246,7 @@ class APKAnalyzer(object):
             lambda x: "L" + x.split(" L")[1].split(";->")[0] + ";",
             native_signatures))
         args_strings = list(map(
-            lambda x: "(" + x.split("(")[1].split(" [access")[0],
+            lambda x: ("(" + x.split("(")[1].split(" [access")[0]).replace(" ", ""),
             native_signatures))
 
         return list(zip(class_names, native_names, args_strings))

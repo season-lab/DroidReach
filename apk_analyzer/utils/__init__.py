@@ -1,4 +1,5 @@
 import hashlib
+import re
 
 from androguard.core.analysis.analysis import Analysis
 from networkx.classes.reportviews import NodeView
@@ -35,7 +36,18 @@ def get_native_methods(dx: Analysis, public_only: bool = False):
     else:
         cg = dx.get_call_graph(accessflags='.*native.*')
 
-    return [str(n) for n in cg.nodes]
+    tmp = [str(n) for n in cg.nodes]
+
+    res = list()
+    for m in tmp:
+        # Filter out nodes that are not native
+        access_flag = re.findall(r"\[access_flags=(.*)\]", m)
+        assert len(access_flag) == 1
+        access_flag = access_flag[0]
+
+        if "native" in access_flag:
+            res.append(m)
+    return res
 
 def md5_hash(f):
     with open(f,'rb') as f_binary:

@@ -205,7 +205,7 @@ class NativeLibAnalyzer(object):
 
         # Dynamic Functions
         rz = self._open_rz()
-        rz.cmd("aaa")
+        rz.cmd("aa")
 
         # ["bits"] seems unreliable...
         bits    = 32 if rz.cmdj("iIj")["class"] == "ELF32" else 64
@@ -268,7 +268,7 @@ class NativeLibAnalyzer(object):
                         analyzer=self,
                         class_name="???",
                         method_name=methodName,
-                        args=methodArgs,
+                        args=methodArgs.replace(" ", ""),
                         offset=methodFuncPtr + 0x400000))
 
         rz.quit()
