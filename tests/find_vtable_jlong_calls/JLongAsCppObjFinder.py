@@ -105,6 +105,7 @@ class JLongAsCppObjFinder(object):
         if is_thumb:
             addr = addr + 1
 
+        print(self.libpath, hex(addr))
         state = self.prepare_state(addr, args)
 
         tainted_calls = list()

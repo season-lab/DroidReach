@@ -32,7 +32,7 @@ class NativeLibAnalyzer(object):
     def _open_rz(self):
         return rzpipe.open(self.libpath, flags=["-2"])
 
-    def __init__(self, cex, libpath, use_rizin=False, use_angr=True):
+    def __init__(self, cex, libpath, use_rizin=False, use_angr=False):
         self.use_rizin = use_rizin
         self.cex = cex
         self.use_angr = use_angr
@@ -236,9 +236,17 @@ class NativeLibAnalyzer(object):
                 i   += 1
             return res
 
-        functions = set()
-        for fun in rz.cmdj("aflj"):
-            functions.add(fun["offset"])
+        text_min = None
+        text_max = None
+        for sec in rz.cmdj("iSj"):
+            if sec["name"] == ".text":
+                text_min = sec["vaddr"]
+                text_max = sec["vaddr"] + sec["vsize"]
+                break
+        assert text_min is not None
+
+        def is_in_text(addr):
+            return text_min <= addr < text_max
 
         for sec in rz.cmdj("iSj"):
             if sec["name"] not in {".data.rel.ro", ".data", ".rodata"}:
@@ -255,7 +263,7 @@ class NativeLibAnalyzer(object):
                 methodArgsPtr = read_addr(data, addr - min_addr + (bits // 8))
                 methodFuncPtr = read_addr(data, addr - min_addr + (bits // 8 * 2))
 
-                if methodFuncPtr not in functions:
+                if not is_in_text(methodFuncPtr):
                     continue
 
                 methodName = read_string(methodNamePtr)
@@ -263,7 +271,7 @@ class NativeLibAnalyzer(object):
                     continue
 
                 methodArgs = read_string(methodArgsPtr)
-                if methodArgs is None or len(methodArgs) == 0 or "(" not in methodArgs or ")" not in methodArgs:
+                if methodArgs is None or len(methodArgs) == 0 or methodArgs[0] != "(" or ")" not in methodArgs:
                     continue
 
                 self._jni_functions.append(

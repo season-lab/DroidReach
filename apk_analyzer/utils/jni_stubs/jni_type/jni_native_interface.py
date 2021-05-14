@@ -1796,7 +1796,7 @@ class NewStringUTF(NativeDroidSimProcedure):
 
         strlen_simproc = angr.SIM_PROCEDURES['libc']['strlen']
         name_strlen = self.inline_call(strlen_simproc, mybytes)
-        string_arg = self.state.solver.eval(self.state.memory.load(mybytes, name_strlen.ret_expr), cast_to=bytes).decode("ASCII")
+        string_arg = self.state.solver.eval(self.state.memory.load(mybytes, name_strlen.ret_expr), cast_to=bytes).decode("utf-8")
         nativedroid_logger.info('String: %s', string_arg)
 
         jstring = JString(self.project)
@@ -1876,6 +1876,8 @@ class GetObjectArrayElement(NativeDroidSimProcedure):
         jobject = JObject(self.project)
         return_value = claripy.BVV(jobject.ptr, self.project.arch.bits)
         element_index = index.ast.args[0]
+        if len(array.annotations) == 0:
+            return claripy.BVS("array_el", self.project.arch.bits)
         array_annotation = array.annotations[0]
         element_type = array_annotation.obj_type.split('[]')[0]
         element_annotation = construct_annotation(element_type, array_annotation.source)
