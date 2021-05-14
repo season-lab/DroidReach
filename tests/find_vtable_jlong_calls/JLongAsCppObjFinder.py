@@ -19,12 +19,14 @@ nativedroid_logger.propagate = False
 
 
 class JLongAsCppObjFinder(object):
-    DEBUG   = False
-    MAXITER = 100
+    DEBUG     = False
+    MAXITER   = 100
+    MAXSTATES = 200
 
     def __init__(self, libpath):
         self.libpath = libpath
         self.project = angr.Project(libpath, auto_load_libs=False)
+        self.state   = self.project.factory.blank_state()  # general purpose state... Can be useful to read memory
         self.jni_ptr = claripy.BVV(
             JNINativeInterface(
                 self.project,
@@ -88,7 +90,21 @@ class JLongAsCppObjFinder(object):
                 state.stack_push(data)
         return state
 
+    def _is_thumb(self, addr):
+        if self.project.arch.name != "ARMEL":
+            return False
+
+        assert addr % 2 == 0
+        self.state.ip = addr
+        if self.state.block().size == 0:
+            return True
+        return False
+
     def check(self, addr, args):
+        is_thumb = self._is_thumb(addr)
+        if is_thumb:
+            addr = addr + 1
+
         state = self.prepare_state(addr, args)
 
         tainted_calls = list()
@@ -125,12 +141,15 @@ class JLongAsCppObjFinder(object):
             smgr.explore(n=1)
             if JLongAsCppObjFinder.DEBUG:
                 print(smgr, smgr.errored, tainted_calls)
+            if len(smgr.active) > JLongAsCppObjFinder.MAXSTATES:
+                # Try to limit RAM usage
+                break
             i += 1
 
         return len(tainted_calls) > 0
 
 if __name__ == "__main__":
-    print("[+] Debug standalong script for JLongAsCppObjFinder")
+    print("[+] Debug standalone script for JLongAsCppObjFinder")
 
     if len(sys.argv) < 4:
         exit(1)

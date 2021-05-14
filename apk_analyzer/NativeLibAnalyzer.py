@@ -202,7 +202,7 @@ class NativeLibAnalyzer(object):
                         class_name=class_name,
                         method_name=method_name,
                         args="???",
-                        offset=fun.offset + 0x400000))
+                        offset=fun.offset))
 
         # Dynamic Functions
         rz = self._open_rz()
