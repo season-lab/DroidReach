@@ -67,7 +67,7 @@ def dynamic_register_resolve(project, analysis_center):
                                      context_sensitivity_level=3, enable_function_hints=False, keep_state=True,
                                      enable_advanced_backward_slicing=False, enable_symbolic_back_traversal=False,
                                      normalize=True, iropt_level=1)
-        return cfg, analysis_center.get_dynamic_register_map()
+        return analysis_center.get_dynamic_register_map()
 
 def find_jni_functions_angr(binary):
     # angr, shut the fuck up
@@ -81,7 +81,7 @@ def find_jni_functions_angr(binary):
     analysis_center = AnalysisCenter("", None, None)
     project = angr.Project(binary)
 
-    _, tmp = dynamic_register_resolve(project, analysis_center)
+    tmp = dynamic_register_resolve(project, analysis_center)
 
     res = list()
     for name, addr in tmp.items():

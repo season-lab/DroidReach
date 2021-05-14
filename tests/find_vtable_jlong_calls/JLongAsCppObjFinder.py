@@ -146,6 +146,16 @@ class JLongAsCppObjFinder(object):
                 break
             i += 1
 
+        if len(smgr.errored) > 0:
+            sys.stderr.write("WARNING: %s @ %#x\n" % (self.libpath, addr))
+            sys.stderr.write("WARNING: %d errored: %s\n"  % (len(smgr.errored), smgr.errored[0]))
+        if i < 5:
+            sys.stderr.write("WARNING: %s @ %#x\n" % (self.libpath, addr))
+            sys.stderr.write("WARNING: very few iterations (%d)\n" % i)
+        if len(smgr.active) > JLongAsCppObjFinder.MAXSTATES:
+            sys.stderr.write("WARNING: %s @ %#x\n" % (self.libpath, addr))
+            sys.stderr.write("WARNING: killed for generating too many states\n")
+
         return len(tainted_calls) > 0
 
 if __name__ == "__main__":

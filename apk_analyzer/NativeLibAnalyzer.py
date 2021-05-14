@@ -8,6 +8,8 @@ try:
 except:
     from utils import md5_hash, find_jni_functions_angr
 from collections import namedtuple
+
+# FIXME: get rid of "analyzer" in JniFunctionDescription and cache on disk
 JniFunctionDescription = namedtuple("JniFunctionDescription", ["analyzer", "class_name", "method_name", "args", "offset"])
 FunctionDescription = namedtuple("FunctionDescription", ["name", "offset", "is_exported"])
 
@@ -297,7 +299,8 @@ class NativeLibAnalyzer(object):
             jni_angr = find_jni_functions_angr(self.libpath)
             for class_name, method_name, args, addr in jni_angr:
                 if method_name not in found_methods:
-                    print ("Method", method_name, "found only by angr")
+                    class_name = "L" + class_name + ";"
+                    print("[!] Method", class_name, method_name, args.replace(" ", ""), "found only by angr")
                     self._jni_functions.append(
                         JniFunctionDescription(
                             analyzer=self,

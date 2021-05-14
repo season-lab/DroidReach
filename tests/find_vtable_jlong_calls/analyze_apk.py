@@ -126,7 +126,7 @@ if __name__ == "__main__":
                 native_lib  = native_impl.analyzer.libpath
                 break
         if native_addr is None:
-            print("No native implementation for", native_method)
+            sys.stderr.write("WARNING: No native implementation for %s %s %s\n" % (class_name, method_name, arg_str))
             continue
 
         lib  = native_lib
