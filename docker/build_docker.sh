@@ -1,3 +1,3 @@
 #!/bin/bash
 
-docker build -t . android-paths
+docker build . -t android-paths
