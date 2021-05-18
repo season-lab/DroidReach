@@ -113,7 +113,7 @@ class JLongAsCppObjFinder(object):
             exit_target = state.inspect.exit_target
             if JLongAsCppObjFinder.DEBUG:
                 print("checkTaintedCall: ", exit_target)
-            if exit_target is None:
+            if exit_target is None or isinstance(exit_target, int):
                 return
             for symb_name in exit_target.variables:
                 if "vtable_entry_" in symb_name:
