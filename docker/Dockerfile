@@ -16,11 +16,12 @@ RUN apt-get install -y      \
 
 RUN pip install meson
 
-# Rizin
-RUN cd /opt                                         && \
-    git clone https://github.com/rizinorg/rizin.git && \
-    cd /opt/rizin                                   && \
-    meson build                                     && \
+# Rizin 0.2.1
+RUN cd /opt                                               && \
+    git clone https://github.com/rizinorg/rizin.git       && \
+    git checkout 91d3bb43fd92fc04e8def76beb22c2d84ae53fb5 && \
+    cd /opt/rizin                                         && \
+    meson build                                           && \
     ninja -C build install
 
 # Ghidra
