@@ -213,6 +213,11 @@ class NativeLibAnalyzer(object):
         # ["bits"] seems unreliable...
         bits    = 32 if rz.cmdj("iIj")["class"] == "ELF32" else 64
         endness = rz.cmdj("iIj")["endian"]
+        if endness == "LE":
+            endness = "little"
+        if endness == "BE":
+            endness = "big"
+        assert endness in {"big", "little"}
 
         def get_section_bytes(addr, size):
             return bytes(rz.cmdj(f"pxj {size} @ {addr:#x}"))
