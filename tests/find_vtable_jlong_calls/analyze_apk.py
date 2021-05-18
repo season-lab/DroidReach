@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import os
+import gc
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 from apk_analyzer import APKAnalyzer
@@ -151,3 +152,4 @@ if __name__ == "__main__":
 
         for name, addr, jlong_as_ptr in zip(names, addrs, does_it_use_jlong_as_ptr(native_lib, args)):
             print(name, "@", addr, ":", jlong_as_ptr)
+            gc.collect()
