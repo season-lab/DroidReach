@@ -1796,7 +1796,11 @@ class NewStringUTF(NativeDroidSimProcedure):
 
         strlen_simproc = angr.SIM_PROCEDURES['libc']['strlen']
         name_strlen = self.inline_call(strlen_simproc, mybytes)
-        string_arg = self.state.solver.eval(self.state.memory.load(mybytes, name_strlen.ret_expr), cast_to=bytes).decode("utf-8")
+        string_arg = self.state.solver.eval(self.state.memory.load(mybytes, name_strlen.ret_expr), cast_to=bytes)
+        try:
+            string_arg = string_arg.decode("ascii")
+        except:
+            string_arg = ""
         nativedroid_logger.info('String: %s', string_arg)
 
         jstring = JString(self.project)
