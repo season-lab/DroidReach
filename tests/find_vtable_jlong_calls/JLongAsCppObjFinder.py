@@ -94,7 +94,9 @@ class JLongAsCppObjFinder(object):
         if self.project.arch.name != "ARMEL":
             return False
 
-        assert addr % 2 == 0
+        if addr % 2 != 0:
+            return False
+
         self.state.ip = addr
         if self.state.block().size == 0:
             return True
