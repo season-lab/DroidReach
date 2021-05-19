@@ -10,7 +10,7 @@ from apk_analyzer.utils.angr_find_dynamic_jni import AnalysisCenter
 from apk_analyzer.utils.jni_stubs.jni_type.jni_native_interface import JNINativeInterface, JObject
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from timeout_decorator import timeout
+from timeout_decorator import timeout, TimeoutError
 
 # angr, shut the fuck up
 angr_logger = logging.getLogger('angr')
@@ -106,7 +106,7 @@ class JLongAsCppObjFinder(object):
             return True
         return False
 
-    @timeout(60*3)  # Risky, let's try
+    @timeout(60*5)  # Risky, let's try
     def _inner_check(self, addr, args):
         is_thumb = self._is_thumb(addr)
         if is_thumb:
@@ -139,7 +139,7 @@ class JLongAsCppObjFinder(object):
             if len(tainted_calls) > 0 or i > JLongAsCppObjFinder.MAXITER:
                 break
 
-            if JLongAsCppObjFinder.DEBUG:
+            if False and JLongAsCppObjFinder.DEBUG:
                 for s in smgr.active:
                     print(s)
                     if self.project.is_hooked(s.addr):
@@ -175,6 +175,9 @@ class JLongAsCppObjFinder(object):
             res = self._inner_check(addr, args)
         except TimeoutError:
             sys.stderr.write("WARNING: timeout\n")
+            return False
+        except:
+            sys.stderr.write("WARNING: unknown error\n")
             return False
         return res
 
