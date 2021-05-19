@@ -9,6 +9,9 @@ from apk_analyzer.utils.jni_stubs.java_type import get_type, get_type_size
 from apk_analyzer.utils.angr_find_dynamic_jni import AnalysisCenter
 from apk_analyzer.utils.jni_stubs.jni_type.jni_native_interface import JNINativeInterface, JObject
 
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from timeout_decorator import timeout
+
 # angr, shut the fuck up
 angr_logger = logging.getLogger('angr')
 angr_logger.propagate = False
@@ -88,6 +91,7 @@ class JLongAsCppObjFinder(object):
                 state.regs.__setattr__('r%d' % arg_id, data)
             else:
                 state.stack_push(data)
+        state.solver._solver.timeout = 2000 # 2 seconds as timeout
         return state
 
     def _is_thumb(self, addr):
@@ -102,12 +106,13 @@ class JLongAsCppObjFinder(object):
             return True
         return False
 
-    def check(self, addr, args):
+    @timeout(60*3)  # Risky, let's try
+    def _inner_check(self, addr, args):
         is_thumb = self._is_thumb(addr)
         if is_thumb:
             addr = addr + 1
 
-        print(self.libpath, hex(addr))
+        print(self.libpath, hex(addr), args)
         state = self.prepare_state(addr, args)
 
         tainted_calls = list()
@@ -137,13 +142,17 @@ class JLongAsCppObjFinder(object):
             if JLongAsCppObjFinder.DEBUG:
                 for s in smgr.active:
                     print(s)
-                    print(s.regs.r0, s.regs.r2)
-                    s.block().pp()
+                    if self.project.is_hooked(s.addr):
+                        print(s.regs.r0, s.regs.r1, s.regs.r2)
+                        print(self.project.hooked_by(s.addr))
+                    else:
+                        s.block().pp()
+                    print(s.step())
                     input("> Press a key to continue...")
 
             smgr.explore(n=1)
             if JLongAsCppObjFinder.DEBUG:
-                print(smgr, smgr.errored, tainted_calls)
+                print(i, smgr, smgr.errored, tainted_calls)
             if len(smgr.active) > JLongAsCppObjFinder.MAXSTATES:
                 # Try to limit RAM usage
                 break
@@ -161,6 +170,14 @@ class JLongAsCppObjFinder(object):
 
         return len(tainted_calls) > 0
 
+    def check(self, addr, args):
+        try:
+            res = self._inner_check(addr, args)
+        except TimeoutError:
+            sys.stderr.write("WARNING: timeout\n")
+            return False
+        return res
+
 if __name__ == "__main__":
     print("[+] Debug standalone script for JLongAsCppObjFinder")
 
@@ -171,5 +188,6 @@ if __name__ == "__main__":
     addr   = int(sys.argv[2], 16) if sys.argv[2].startswith("0x") else int(sys.argv[2])
     args   = sys.argv[3]
 
+    JLongAsCppObjFinder.DEBUG = True
     of = JLongAsCppObjFinder(binary)
     print(of.check(addr, args))
