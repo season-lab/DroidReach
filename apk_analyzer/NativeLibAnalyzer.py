@@ -263,7 +263,7 @@ class NativeLibAnalyzer(object):
             assert min_addr > 0 and max_addr > min_addr
             assert len(data) == sec["vsize"]
 
-            for addr in range(min_addr, max_addr - (bits//8 * 3)):
+            for addr in range(min_addr, max_addr - (bits//8 * 3) + 1):
                 methodNamePtr = read_addr(data, addr - min_addr)
                 methodArgsPtr = read_addr(data, addr - min_addr + (bits // 8))
                 methodFuncPtr = read_addr(data, addr - min_addr + (bits // 8 * 2))
