@@ -241,27 +241,32 @@ class NativeLibAnalyzer(object):
                 i   += 1
             return res
 
-        text_min = None
-        text_max = None
+        code_sections = list()
+        data_sections = list()
         for sec in rz.cmdj("iSj"):
-            if sec["name"] == ".text":
-                text_min = sec["vaddr"]
-                text_max = sec["vaddr"] + sec["vsize"]
-                break
-        assert text_min is not None
+            perm = sec["perm"]
+            if perm[1] == "r" and perm[3] != "x":
+                data_sections.append(
+                    (sec["name"], sec["vaddr"], sec["vaddr"] + sec["vsize"])
+                )
+            if perm[3] == "x":
+                code_sections.append(
+                    (sec["name"], sec["vaddr"], sec["vaddr"] + sec["vsize"])
+                )
+        assert len(code_sections) > 0
 
         def is_in_text(addr):
-            return text_min <= addr < text_max
+            for _, min_addr, max_addr in code_sections:
+                if min_addr <= addr < max_addr:
+                    return True
+            return False
 
-        for sec in rz.cmdj("iSj"):
-            if sec["name"] not in {".data.rel.ro", ".data", ".rodata"}:
+        for _, min_addr, max_addr in data_sections:
+            if max_addr == min_addr:
                 continue
 
-            min_addr = sec["vaddr"]
-            max_addr = min_addr + sec["vsize"]
-            data     = get_section_bytes(min_addr, sec["vsize"])
-            assert min_addr > 0 and max_addr > min_addr
-            assert len(data) == sec["vsize"]
+            data = get_section_bytes(min_addr, max_addr - min_addr)
+            assert len(data) == max_addr - min_addr
 
             for addr in range(min_addr, max_addr - (bits//8 * 3) + 1):
                 methodNamePtr = read_addr(data, addr - min_addr)
