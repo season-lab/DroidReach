@@ -141,6 +141,9 @@ class APKAnalyzer(object):
         self._native_libs = list()
         for f in self.apk.get_files():
             if f.startswith("lib/"):
+                if len(self.apk.get_file(f)) == 0:
+                    # Not a file, maybe a bug of androguard?
+                    continue
                 lib_full_path = os.path.join(self.wdir, f)
                 if not os.path.exists(lib_full_path):
                     os.makedirs(os.path.dirname(lib_full_path), exist_ok=True)
