@@ -36,17 +36,12 @@ class NativeJLongAnalyzer(object):
                 AnalysisCenter(None, "", "")).ptr,
                 self.project.arch.bits)
 
-        self.project_ptr = JObject(self.project).ptr
-        self.cpp_obj     = None
-        self.vtable      = None
-        self.struct      = None
+        self.obj     = JObject(self.project)
+        self.cpp_obj = JObject(self.project)
+        self.vtable  = JObject(self.project)
+        self.struct  = JObject(self.project)
 
     def mk_cpp_obj(self, state):
-        if self.cpp_obj is None:
-            # Lets allocate it only once
-            self.cpp_obj = JObject(self.project)
-            self.vtable  = JObject(self.project)
-
         if NativeJLongAnalyzer.DEBUG:
             print("obj ptr:",    claripy.BVV(self.cpp_obj.ptr, self.project.arch.bits))
             print("vtable ptr:", claripy.BVV(self.vtable.ptr, self.project.arch.bits))
@@ -149,7 +144,7 @@ class NativeJLongAnalyzer(object):
         state = self.project.factory.blank_state(addr=addr)
         state.regs.r0 = self.jni_ptr
         state.regs.r1 = claripy.BVV(
-            self.project_ptr, self.project.arch.bits)
+            self.obj.ptr, self.project.arch.bits)
 
         parsed_args = dict()
         for i, a in enumerate(args.split(",")):
