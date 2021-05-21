@@ -36,46 +36,56 @@ class NativeJLongAnalyzer(object):
                 AnalysisCenter(None, "", "")).ptr,
                 self.project.arch.bits)
 
+        self.project_ptr = JObject(self.project).ptr
+        self.cpp_obj     = None
+        self.vtable      = None
+        self.struct      = None
+
     def mk_cpp_obj(self, state):
-        obj    = JObject(self.project)
-        vtable = JObject(self.project)
+        if self.cpp_obj is None:
+            # Lets allocate it only once
+            self.cpp_obj = JObject(self.project)
+            self.vtable  = JObject(self.project)
 
         if NativeJLongAnalyzer.DEBUG:
-            print("obj ptr:",    claripy.BVV(obj.ptr, self.project.arch.bits))
-            print("vtable ptr:", claripy.BVV(vtable.ptr, self.project.arch.bits))
+            print("obj ptr:",    claripy.BVV(self.cpp_obj.ptr, self.project.arch.bits))
+            print("vtable ptr:", claripy.BVV(self.vtable.ptr, self.project.arch.bits))
 
         state.memory.store(
-            obj.ptr,
-            claripy.BVV(vtable.ptr, self.project.arch.bits),
+            self.cpp_obj.ptr,
+            claripy.BVV(self.vtable.ptr, self.project.arch.bits),
             endness=self.project.arch.memory_endness)
         for i in range(0, 300, self.project.arch.bits // 8):
             state.memory.store(
-                vtable.ptr + i,
+                self.vtable.ptr + i,
                 claripy.BVS("vtable_entry_%d" % i, self.project.arch.bits),
                 endness=self.project.arch.memory_endness)
 
         if NativeJLongAnalyzer.DEBUG:
-            print("vtable ptr (load):", state.memory.load(obj.ptr, self.project.arch.bits // 8, endness=self.project.arch.memory_endness))
+            print("vtable ptr (load):", state.memory.load(self.cpp_obj.ptr, self.project.arch.bits // 8, endness=self.project.arch.memory_endness))
             print("first vtable entry (load):", state.memory.load(
-                state.memory.load(obj.ptr, self.project.arch.bits // 8, endness=self.project.arch.memory_endness),
+                state.memory.load(self.cpp_obj.ptr, self.project.arch.bits // 8, endness=self.project.arch.memory_endness),
                 self.project.arch.bits // 8, endness=self.project.arch.memory_endness))
 
-        return claripy.BVV(obj.ptr, self.project.arch.bits)
+        return claripy.BVV(self.cpp_obj.ptr, self.project.arch.bits)
 
     def mk_funptr_struct(self, state):
-        struct = JObject(self.project)
+        if self.struct is None:
+            # Lets allocate it only once
+            self.struct = JObject(self.project)
+
         for i in range(0, 300, self.project.arch.bits // 8):
             state.memory.store(
-                struct.ptr + i,
+                self.struct.ptr + i,
                 claripy.BVS("fun_ptr_%d" % i, self.project.arch.bits),
                 endness=self.project.arch.memory_endness)
-        return claripy.BVV(struct.ptr, self.project.arch.bits)
+        return claripy.BVV(self.struct.ptr, self.project.arch.bits)
 
     def prepare_state_cpp(self, addr, args):
         state = self.project.factory.blank_state(addr=addr)
         state.regs.r0 = self.jni_ptr
         state.regs.r1 = claripy.BVV(
-            JObject(self.project).ptr, self.project.arch.bits)
+            self.project_ptr, self.project.arch.bits)
 
         parsed_args = dict()
         for i, a in enumerate(args.split(",")):
@@ -107,7 +117,7 @@ class NativeJLongAnalyzer(object):
         state = self.project.factory.blank_state(addr=addr)
         state.regs.r0 = self.jni_ptr
         state.regs.r1 = claripy.BVV(
-            JObject(self.project).ptr, self.project.arch.bits)
+            self.project_ptr, self.project.arch.bits)
 
         parsed_args = dict()
         for i, a in enumerate(args.split(",")):
@@ -139,7 +149,7 @@ class NativeJLongAnalyzer(object):
         state = self.project.factory.blank_state(addr=addr)
         state.regs.r0 = self.jni_ptr
         state.regs.r1 = claripy.BVV(
-            JObject(self.project).ptr, self.project.arch.bits)
+            self.project_ptr, self.project.arch.bits)
 
         parsed_args = dict()
         for i, a in enumerate(args.split(",")):
@@ -412,6 +422,6 @@ if __name__ == "__main__":
 
     NativeJLongAnalyzer.DEBUG = True
     of = NativeJLongAnalyzer(binary)
-    print(of.check_jlong_as_ptr(addr, args))
+    # print(of.check_jlong_as_ptr(addr, args))
     print(of.check_jlong_as_fun_ptr(addr, args))
-    print(of.check_cpp_obj(addr, args))
+    # print(of.check_cpp_obj(addr, args))
