@@ -112,7 +112,7 @@ class NativeLibAnalyzer(object):
         if rz is None:
             should_quit = True
             rz = self._open_rz()
-            rz.cmd("aa")
+            # rz.cmd("aa")
 
         symbols = rz.cmdj("isj")
         for symbol in symbols:
@@ -220,7 +220,7 @@ class NativeLibAnalyzer(object):
         self._jni_functions = list()
 
         rz = self._open_rz()
-        rz.cmd("aa")
+        # rz.cmd("aa")
 
         # Static Functions
         self._gen_functions(rz=rz)
@@ -301,13 +301,14 @@ class NativeLibAnalyzer(object):
             data = get_section_bytes(min_addr, max_addr - min_addr)
             assert len(data) == max_addr - min_addr
 
-            data = memoryview(data)
             for addr in range(min_addr, max_addr - (bits//8 * 3) + 1):
-                methodFuncPtr, methodNamePtr, methodArgsPtr = struct.unpack(
-                    struct_format, data[addr - min_addr:addr - min_addr + (bits // 8 * 3)])
+                methodFuncPtr = read_addr(data, addr - min_addr + (bits // 8 * 2))
 
                 if not is_in_text(methodFuncPtr):
                     continue
+
+                methodNamePtr = read_addr(data, addr - min_addr)
+                methodArgsPtr = read_addr(data, addr - min_addr + (bits // 8))
 
                 methodName = read_string(methodNamePtr)
                 if methodName is None or len(methodName) == 0:

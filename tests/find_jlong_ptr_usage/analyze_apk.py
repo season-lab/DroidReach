@@ -7,9 +7,9 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."
 from apk_analyzer import APKAnalyzer
 from cex.cex import CEX
 try:
-    from .JLongAsCppObjFinder import JLongAsCppObjFinder
+    from .NativeJLongAnalyzer import NativeJLongAnalyzer
 except:
-    from JLongAsCppObjFinder import JLongAsCppObjFinder
+    from NativeJLongAnalyzer import NativeJLongAnalyzer
 
 def usage():
     print("USAGE: %s <apk_path>" % sys.argv[0])
@@ -60,16 +60,22 @@ def does_it_use_jlong_as_ptr_angr7(lib, arguments):
     return out
 
 def does_it_use_jlong_as_ptr(lib, arguments):
-    of  = JLongAsCppObjFinder(lib)
+    of  = NativeJLongAnalyzer(lib)
     res = list()
 
     for addr, args in arguments:
         if isinstance(addr, str):
             addr = int(addr, 16) if addr.startswith("0x") else int(addr)
         if "long" not in args:
-            res.append(False)
+            res.append((False, False, False))
             continue
-        res.append(of.check(addr, args))
+        res.append(
+            (
+                of.check_jlong_as_ptr(addr, args),
+                of.check_jlong_as_fun_ptr(addr, args),
+                of.check_cpp_obj(addr, args),
+            )
+        )
 
     return res
 
@@ -91,7 +97,8 @@ if __name__ == "__main__":
     libs = apka.get_analyzed_libs()
     for lib in libs:
         if lib.arch in {"armeabi", "armeabi-v7a"}:
-            if lib.libname in added_libs:
+            # Relaxed a little bit... If the library is not in a standard location, analyze it
+            if lib.libname in added_libs and ("lib/"+lib.arch) in lib.libpath:
                 continue
             added_libs.add(lib.libname)
             arm_libs.append(lib.libhash)
@@ -106,12 +113,14 @@ if __name__ == "__main__":
         exit(0)
 
     print_stderr("[INFO]", "found %d native methods and %d armv7 libs" % (len(native_methods), len(arm_libs)))
+
+    native_libs       = dict()
     clustered_methods = dict()
     for native_method in native_methods:
         class_name, method_name, arg_str = native_method
         demangled_name = apka.demangle(class_name, method_name, arg_str)
         if demangled_name is None:
-            print("Unable to demangle", class_name, method_name, arg_str, native_method)
+            print_stderr("Unable to demangle", class_name, method_name, arg_str, native_method)
             continue
 
         demangled_class_name = demangled_name[:demangled_name.find(":")]
@@ -125,9 +134,11 @@ if __name__ == "__main__":
             if native_impl.analyzer.arch in {"armeabi", "armeabi-v7a"}:
                 native_addr = native_impl.offset
                 native_lib  = native_impl.analyzer.libpath
+                if native_impl.analyzer.libhash not in native_libs:
+                    native_libs[native_impl.analyzer.libhash] = native_impl.analyzer.libpath
                 break
         if native_addr is None:
-            sys.stderr.write("WARNING: No native implementation for %s %s %s\n" % (class_name, method_name, arg_str))
+            print_stderr("WARNING: No native implementation for %s %s %s\n" % (class_name, method_name, arg_str))
             continue
 
         lib  = native_lib
@@ -138,8 +149,14 @@ if __name__ == "__main__":
             clustered_methods[lib] = list()
         clustered_methods[lib].append((demangled_name, addr, args))
 
+    lib_dep_graph = apka.build_lib_dependency_graph()
+    for native_hash in native_libs:
+        native_path = native_libs[native_hash]
+        if lib_dep_graph.out_degree(native_hash) > 0:
+            print_stderr("[NATIVE_LIB_INFO] JNI native library", native_path, "calls another lib")
+
     for native_lib in clustered_methods:
-        print(native_lib)
+        print_stderr(native_lib)
         arguments = clustered_methods[native_lib]
 
         args  = list()
@@ -151,5 +168,6 @@ if __name__ == "__main__":
             addrs.append(addr)
 
         for name, addr, jlong_as_ptr in zip(names, addrs, does_it_use_jlong_as_ptr(native_lib, args)):
-            print(name, "@", addr, ":", jlong_as_ptr)
+            jlong_as_ptr, jlong_as_fun_ptr, jlong_as_cpp_obj = jlong_as_ptr
+            print_stderr("[JNI_METHOD_INFO]", name, "@", addr, ":", jlong_as_ptr, jlong_as_fun_ptr, jlong_as_cpp_obj)
             gc.collect()
