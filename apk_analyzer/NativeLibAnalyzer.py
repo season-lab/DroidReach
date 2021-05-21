@@ -62,7 +62,19 @@ class NativeLibAnalyzer(object):
             self.arch = "mips64"
         else:
             rz = self._open_rz()
-            self.arch = rz.cmdj("iIj")["arch"]
+            rz_info  = rz.cmdj("iIj")
+            rz_arch  = rz_info["arch"]
+            rz_class = rz_info["class"]
+            if rz_arch == "arm" and rz_class == "ELF32":
+                self.arch = "armeabi"
+            elif rz_arch == "arm" and rz_class == "ELF64":
+                self.arch = "arm64-v8a"
+            elif rz_arch == "x86" and rz_class == "ELF32":
+                self.arch = "x86"
+            elif rz_arch == "x86" and rz_class == "ELF64":
+                self.arch = "x86_64"
+            else:
+                raise Exception("ERROR: arch %s and class %s unsupported" % (rz_arch, rz_class))
             rz.quit()
 
         self._exported_functions = None

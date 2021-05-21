@@ -140,7 +140,8 @@ class APKAnalyzer(object):
 
         self._native_libs = list()
         for f in self.apk.get_files():
-            if f.startswith("lib/"):
+            # Include libs in non-standard locations (this may introduce bugs later on, lets keep an eye on it)
+            if f.startswith("lib/") or f.endswith(".so"):
                 if len(self.apk.get_file(f)) == 0:
                     # Not a file, maybe a bug of androguard?
                     continue
