@@ -80,7 +80,7 @@ class NativeJLongAnalyzer(object):
         state = self.project.factory.blank_state(addr=addr)
         state.regs.r0 = self.jni_ptr
         state.regs.r1 = claripy.BVV(
-            self.project_ptr, self.project.arch.bits)
+            self.obj.ptr, self.project.arch.bits)
 
         parsed_args = dict()
         for i, a in enumerate(args.split(",")):
@@ -112,7 +112,7 @@ class NativeJLongAnalyzer(object):
         state = self.project.factory.blank_state(addr=addr)
         state.regs.r0 = self.jni_ptr
         state.regs.r1 = claripy.BVV(
-            self.project_ptr, self.project.arch.bits)
+            self.obj.ptr, self.project.arch.bits)
 
         parsed_args = dict()
         for i, a in enumerate(args.split(",")):
