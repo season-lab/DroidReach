@@ -1,4 +1,5 @@
 import os
+import struct
 import rzpipe
 import logging
 import subprocess
@@ -88,14 +89,18 @@ class NativeLibAnalyzer(object):
                 .replace("$PROJ_NAME", proj_name)
         return cmd
 
-    def _gen_functions(self):
+    def _gen_functions(self, rz=None):
         if self._imported_functions is not None:
             return
 
+        should_quit = False
+
         self._imported_functions = list()
         self._exported_functions = list()
-        rz = self._open_rz()
-        rz.cmd("aa")
+        if rz is None:
+            should_quit = True
+            rz = self._open_rz()
+            rz.cmd("aa")
 
         symbols = rz.cmdj("isj")
         for symbol in symbols:
@@ -113,7 +118,8 @@ class NativeLibAnalyzer(object):
                         name=symbol["name"],
                         offset=symbol["vaddr"] + 0x400000,
                         is_exported=True))
-        rz.quit()
+        if should_quit:
+            rz.quit()
 
     def get_exported_functions(self):
         self._gen_functions()
@@ -162,6 +168,13 @@ class NativeLibAnalyzer(object):
     def demangle_jni_name(name):
         assert name.startswith("Java_")
 
+        def replace_tokens(s):
+            return s \
+                .replace("_0", "$$$0") \
+                .replace("_1", "$$$1") \
+                .replace("_2", "$$$2") \
+                .replace("_3", "$$$3")
+
         def fix_mangling(s):
             s = s \
                 .replace("$$$1", "_") \
@@ -178,37 +191,39 @@ class NativeLibAnalyzer(object):
                 s = s[:i] + unicode_str + s[i+8:]
             return s
 
-        name = name \
-            .replace("_0", "$$$0") \
-            .replace("_1", "$$$1") \
-            .replace("_2", "$$$2") \
-            .replace("_3", "$$$3")
+        args = "???"
+        if "__" in name:
+            name, args = name.split("__")
+            args = fix_mangling(replace_tokens(args))
+            args = "(" + args.replace("_", "/") # return type not present!
 
+        name   = replace_tokens(name)
         tokens = name.split("_")[1:]
 
         method_name = fix_mangling(tokens[-1])
         class_name  = fix_mangling(".".join(tokens[0:-1]))
-        return class_name, method_name
+        return class_name, method_name, args
 
     def _get_jni_functions_rizin(self):
         self._jni_functions = list()
 
+        rz = self._open_rz()
+        rz.cmd("aa")
+
         # Static Functions
-        self._gen_functions()
+        self._gen_functions(rz=rz)
         for fun in self._exported_functions:
             if fun.name.startswith("Java_"):
-                class_name, method_name = NativeLibAnalyzer.demangle_jni_name(fun.name)
+                class_name, method_name, args = NativeLibAnalyzer.demangle_jni_name(fun.name)
                 self._jni_functions.append(
                     JniFunctionDescription(
                         analyzer=self,
                         class_name=class_name,
                         method_name=method_name,
-                        args="???",
+                        args=args,
                         offset=fun.offset))
 
         # Dynamic Functions
-        rz = self._open_rz()
-        rz.cmd("aa")
 
         # ["bits"] seems unreliable...
         bits    = 32 if rz.cmdj("iIj")["class"] == "ELF32" else 64
@@ -218,6 +233,10 @@ class NativeLibAnalyzer(object):
         if endness == "BE":
             endness = "big"
         assert endness in {"big", "little"}
+
+        struct_format = \
+            ("<"   if endness == "little" else ">") + \
+            ("III" if bits == 32          else "LLL")
 
         def get_section_bytes(addr, size):
             return bytes(rz.cmdj(f"pxj {size} @ {addr:#x}"))
@@ -246,6 +265,8 @@ class NativeLibAnalyzer(object):
         for sec in rz.cmdj("iSj"):
             perm = sec["perm"]
             if perm[1] == "r" and perm[3] != "x":
+                if sec["name"] == ".bss":
+                    continue
                 data_sections.append(
                     (sec["name"], sec["vaddr"], sec["vaddr"] + sec["vsize"])
                 )
@@ -268,10 +289,10 @@ class NativeLibAnalyzer(object):
             data = get_section_bytes(min_addr, max_addr - min_addr)
             assert len(data) == max_addr - min_addr
 
+            data = memoryview(data)
             for addr in range(min_addr, max_addr - (bits//8 * 3) + 1):
-                methodNamePtr = read_addr(data, addr - min_addr)
-                methodArgsPtr = read_addr(data, addr - min_addr + (bits // 8))
-                methodFuncPtr = read_addr(data, addr - min_addr + (bits // 8 * 2))
+                methodFuncPtr, methodNamePtr, methodArgsPtr = struct.unpack(
+                    struct_format, data[addr - min_addr:addr - min_addr + (bits // 8 * 3)])
 
                 if not is_in_text(methodFuncPtr):
                     continue
@@ -291,6 +312,9 @@ class NativeLibAnalyzer(object):
                         method_name=methodName,
                         args=methodArgs.replace(" ", ""),
                         offset=methodFuncPtr + 0x400000))
+
+            # Force GC to delete the data (it can be big)
+            del data
 
         rz.quit()
 

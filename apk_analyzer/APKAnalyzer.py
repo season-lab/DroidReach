@@ -227,7 +227,9 @@ class APKAnalyzer(object):
             for jni_desc in jni_functions:
                 if (jni_desc.method_name == method_name) and                               \
                    (jni_desc.class_name == "???" or jni_desc.class_name == class_name) and \
-                   (jni_desc.args == "???" or jni_desc.args == args_str):
+                   (jni_desc.args == "???" or args_str.startswith(jni_desc.args)):
+                   # in Java_* mangling, if args are present, the return value is not, so the string will be cutted (e.g. "(III" instead of "(III)V").
+                   # for this reason, I will only check if the first part of the argument string matches with jni_desc.args
 
                     res.append(jni_desc)
 
