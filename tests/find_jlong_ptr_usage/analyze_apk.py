@@ -16,7 +16,7 @@ def usage():
     exit(1)
 
 def print_stderr(*msg):
-    sys.stderr.write(" ".join(str(msg)) + "\n")
+    sys.stderr.write(" ".join(map(str, msg)) + "\n")
 
 def does_it_use_jlong_as_ptr_angr7(lib, arguments):
     # OLD FUNCTION: used only to check consistency with angr7
