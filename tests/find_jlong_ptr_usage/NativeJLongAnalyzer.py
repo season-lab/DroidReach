@@ -370,7 +370,7 @@ class NativeJLongAnalyzer(object):
         try:
             res = self._inner_check_cpp_obj(addr, args)
         except TimeoutError:
-            sys.stderr.write("WARNING: timeout\n")
+            sys.stderr.write("WARNING: %#x timeout\n" % addr)
             return False
         # except:
         #     sys.stderr.write("WARNING: unknown error\n")
@@ -381,7 +381,7 @@ class NativeJLongAnalyzer(object):
         try:
             res = self._inner_check_jlong_as_ptr(addr, args)
         except TimeoutError:
-            sys.stderr.write("WARNING: timeout\n")
+            sys.stderr.write("WARNING: %#x timeout\n" % addr)
             return False
         # except:
         #     sys.stderr.write("WARNING: unknown error\n")
@@ -392,7 +392,7 @@ class NativeJLongAnalyzer(object):
         try:
             res = self._inner_check_jlong_as_fun_ptr(addr, args)
         except TimeoutError:
-            sys.stderr.write("WARNING: timeout\n")
+            sys.stderr.write("WARNING: %#x timeout\n" % addr)
             return False
         # except:
         #     sys.stderr.write("WARNING: unknown error\n")
