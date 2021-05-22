@@ -174,4 +174,5 @@ if __name__ == "__main__":
         for name, addr, jlong_as_ptr in zip(names, addrs, does_it_use_jlong_as_ptr(native_lib, args)):
             jlong_as_ptr, jlong_as_fun_ptr, jlong_as_cpp_obj = jlong_as_ptr
             print_stderr("[JNI_METHOD_INFO]", name, "@", addr, ":", jlong_as_ptr, jlong_as_fun_ptr, jlong_as_cpp_obj)
-            gc.collect()
+
+        gc.collect()
