@@ -2,6 +2,7 @@ import logging
 import claripy
 import angr
 import sys
+import cle
 import os
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
@@ -368,6 +369,10 @@ class NativeJLongAnalyzer(object):
         except TimeoutError:
             sys.stderr.write("WARNING: %#x timeout\n" % addr)
             return False
+        except cle.CLEError as e:
+            # Most probably "Too many loaded modules for TLS to handle"
+            sys.stderr.write("WARNING: CLEError %s\n" % str(e))
+            return False
         # except:
         #     sys.stderr.write("WARNING: unknown error\n")
         #     return False
@@ -379,6 +384,10 @@ class NativeJLongAnalyzer(object):
         except TimeoutError:
             sys.stderr.write("WARNING: %#x timeout\n" % addr)
             return False
+        except cle.CLEError as e:
+            # Most probably "Too many loaded modules for TLS to handle"
+            sys.stderr.write("WARNING: CLEError %s\n" % str(e))
+            return False
         # except:
         #     sys.stderr.write("WARNING: unknown error\n")
         #     return False
@@ -389,6 +398,10 @@ class NativeJLongAnalyzer(object):
             res = self._inner_check_jlong_as_fun_ptr(addr, args)
         except TimeoutError:
             sys.stderr.write("WARNING: %#x timeout\n" % addr)
+            return False
+        except cle.CLEError as e:
+            # Most probably "Too many loaded modules for TLS to handle"
+            sys.stderr.write("WARNING: CLEError %s\n" % str(e))
             return False
         # except:
         #     sys.stderr.write("WARNING: unknown error\n")
