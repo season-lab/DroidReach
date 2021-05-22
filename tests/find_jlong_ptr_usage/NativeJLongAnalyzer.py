@@ -45,7 +45,7 @@ class NativeJLongAnalyzer(object):
         typ_size = get_type_size(self.project, arg_type)
         if arg_type in {'boolean', 'byte', 'char', 'short', 'int', 'long', 'float', 'double'}:
             return claripy.BVS("%s_%d" % (arg_type, arg_id), typ_size)
-        return claripy.BVV(get_type(arg_type).ptr, typ_size)
+        return claripy.BVV(get_type(self.project, arg_type).ptr, typ_size)
 
     def mk_cpp_obj(self, state):
         if NativeJLongAnalyzer.DEBUG:
