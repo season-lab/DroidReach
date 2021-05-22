@@ -69,7 +69,7 @@ def does_it_use_jlong_as_ptr(lib, arguments):
             res.append((False, False, False))
             continue
 
-        # Rebuild it every time... To avoid the creation of
+        # Rebuild it every time to avoid the creation of
         # too many JObjects that makes CLE crash.
         # This will impact the performance for sure
         of = NativeJLongAnalyzer(lib)
