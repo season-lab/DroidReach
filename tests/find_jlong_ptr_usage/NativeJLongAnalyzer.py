@@ -41,6 +41,12 @@ class NativeJLongAnalyzer(object):
         self.vtable  = JObject(self.project)
         self.struct  = JObject(self.project)
 
+    def mk_type(self, arg_id, arg_type):
+        typ_size = get_type_size(self.project, arg_type)
+        if arg_type in {'boolean', 'byte', 'char', 'short', 'int', 'long', 'float', 'double'}:
+            return claripy.BVS("%s_%d" % (arg_type, arg_id), typ_size)
+        return claripy.BVV(get_type(arg_type).ptr, typ_size)
+
     def mk_cpp_obj(self, state):
         if NativeJLongAnalyzer.DEBUG:
             print("obj ptr:",    claripy.BVV(self.cpp_obj.ptr, self.project.arch.bits))
@@ -65,10 +71,6 @@ class NativeJLongAnalyzer(object):
         return claripy.BVV(self.cpp_obj.ptr, self.project.arch.bits)
 
     def mk_funptr_struct(self, state):
-        if self.struct is None:
-            # Lets allocate it only once
-            self.struct = JObject(self.project)
-
         for i in range(0, 300, self.project.arch.bits // 8):
             state.memory.store(
                 self.struct.ptr + i,
@@ -89,14 +91,11 @@ class NativeJLongAnalyzer(object):
 
         for arg_id in parsed_args:
             arg_type = parsed_args[arg_id]
-            if arg_type not in {"long", "int"}:
-                typ       = get_type(self.project, arg_type.replace('/', '.'))
-                typ_size  = get_type_size(self.project, arg_type)
-                data      = claripy.BVV(typ.ptr, typ_size)
-            elif arg_type == "long":
+
+            if arg_type == "long":
                 data = self.mk_cpp_obj(state)
             else:
-                data = claripy.BVS("int_arg_%d" % arg_id, self.project.arch.bits)
+                data = self.mk_type(arg_id, arg_type)
 
             if data.size() < self.project.arch.bits:
                 data = data.zero_extend(self.project.arch.bits - data.size())
@@ -121,14 +120,10 @@ class NativeJLongAnalyzer(object):
 
         for arg_id in parsed_args:
             arg_type = parsed_args[arg_id]
-            if arg_type not in {"long", "int"}:
-                typ       = get_type(self.project, arg_type.replace('/', '.'))
-                typ_size  = get_type_size(self.project, arg_type)
-                data      = claripy.BVV(typ.ptr, typ_size)
-            elif arg_type == "long":
+            if arg_type == "long":
                 data = claripy.BVS("long_arg_%d" % arg_id, self.project.arch.bits)
             else:
-                data = claripy.BVS("int_arg_%d" % arg_id, self.project.arch.bits)
+                data = self.mk_type(arg_id, arg_type)
 
             if data.size() < self.project.arch.bits:
                 data = data.zero_extend(self.project.arch.bits - data.size())
@@ -153,14 +148,10 @@ class NativeJLongAnalyzer(object):
 
         for arg_id in parsed_args:
             arg_type = parsed_args[arg_id]
-            if arg_type not in {"long", "int"}:
-                typ       = get_type(self.project, arg_type.replace('/', '.'))
-                typ_size  = get_type_size(self.project, arg_type)
-                data      = claripy.BVV(typ.ptr, typ_size)
-            elif arg_type == "long":
+            if arg_type == "long":
                 data = self.mk_funptr_struct(state)
             else:
-                data = claripy.BVS("int_arg_%d" % arg_id, self.project.arch.bits)
+                data = self.mk_type(arg_id, arg_type)
 
             if data.size() < self.project.arch.bits:
                 data = data.zero_extend(self.project.arch.bits - data.size())
