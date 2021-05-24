@@ -74,7 +74,7 @@ class NativeLibAnalyzer(object):
             elif rz_arch == "x86" and rz_class == "ELF64":
                 self.arch = "x86_64"
             else:
-                raise Exception("ERROR: arch %s and class %s unsupported" % (rz_arch, rz_class))
+                self.arch = rz_arch + "_" + rz_class
             rz.quit()
 
         self._exported_functions = None
