@@ -60,28 +60,23 @@ def does_it_use_jlong_as_ptr_angr7(lib, arguments):
     return out
 
 def does_it_use_jlong_as_ptr(lib, arguments):
-    res = list()
-
     for addr, args in arguments:
         if isinstance(addr, str):
             addr = int(addr, 16) if addr.startswith("0x") else int(addr)
         if "long" not in args:
-            res.append((False, False, False))
+            yield (False, False, False)
             continue
 
         # Rebuild it every time to avoid the creation of
         # too many JObjects that makes CLE crash.
         # This will impact the performance for sure
         of = NativeJLongAnalyzer(lib)
-        res.append(
+        yield \
             (
                 of.check_jlong_as_ptr(addr, args),
                 of.check_jlong_as_fun_ptr(addr, args),
                 of.check_cpp_obj(addr, args),
             )
-        )
-
-    return res
 
 def build_args(class_name, args):
     return args.replace(" ", "")
