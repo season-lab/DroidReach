@@ -1403,7 +1403,7 @@ class SetIntField(SetTypeField):
             if isinstance(annotation, JintAnnotation):
                 field_annotation = annotation
         if field_annotation is None:
-            field_annotation = JintAnnotation(source='from_native', value=value.ast.args[0])
+            field_annotation = JintAnnotation(source='from_native', value=self.state.solver.eval(value))
 
         id_annotation = None
         for annotation in fieldID.annotations:
@@ -1879,7 +1879,7 @@ class GetObjectArrayElement(NativeDroidSimProcedure):
 
         jobject = JObject(self.project)
         return_value = claripy.BVV(jobject.ptr, self.project.arch.bits)
-        element_index = index.ast.args[0]
+        element_index = self.state.solver.eval(index)
         if len(array.annotations) == 0:
             return claripy.BVS("array_el", self.project.arch.bits)
         array_annotation = array.annotations[0]
