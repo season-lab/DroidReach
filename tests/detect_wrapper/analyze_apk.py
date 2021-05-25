@@ -47,7 +47,7 @@ def define_functions_ghidra(ghidra, path, offsets):
             .replace("$BINARY", libname)                    \
             .replace("$PROJ_FOLDER", proj_dir)              \
             .replace("$PROJ_NAME", proj_name)
-    subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
+    subprocess.check_call(cmd)#, stderr=subprocess.DEVNULL)
 
 def is_in_java(jni_desc, native_methods):
     for class_name, method_name, args_str in native_methods:
@@ -103,11 +103,17 @@ if __name__ == "__main__":
                 continue
             jni_offsets.append(jni_method.offset)
 
+        if len(jni_functions) == 0:
+            continue
+
         define_functions_ghidra(ghidra, lib.libpath, jni_offsets)
         cg = cex.get_callgraph(lib.libpath, plugins=["Ghidra"])
 
         for off in jni_offsets:
             jni_functions += 1
+
+            if off & 1:
+                off -= 1
 
             subgraph = nx.ego_graph(cg, off, sys.maxsize)
             for addr in subgraph.nodes:
