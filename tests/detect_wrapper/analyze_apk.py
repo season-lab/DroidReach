@@ -6,7 +6,7 @@ import gc
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 from apk_analyzer import APKAnalyzer
-from cex.cex import CEX
+from cex.cex import CEXProject
 
 def usage():
     print("USAGE: %s <apk_path>" % sys.argv[0])
@@ -47,7 +47,7 @@ def define_functions_ghidra(ghidra, path, offsets):
             .replace("$BINARY", libname)                    \
             .replace("$PROJ_FOLDER", proj_dir)              \
             .replace("$PROJ_NAME", proj_name)
-    subprocess.check_call(cmd)#, stderr=subprocess.DEVNULL)
+    subprocess.check_call(cmd, stderr=subprocess.DEVNULL)
 
 def is_in_java(jni_desc, native_methods):
     for class_name, method_name, args_str in native_methods:
@@ -63,8 +63,7 @@ if __name__ == "__main__":
 
     apk_path = sys.argv[1]
 
-    cex  = CEX()
-    apka = APKAnalyzer(None, apk_path)
+    apka = APKAnalyzer(apk_path)
 
     native_methods = apka.find_native_methods()
     if len(native_methods) == 0:
@@ -83,7 +82,7 @@ if __name__ == "__main__":
             arm_libs.append(lib)
 
     depgraph = apka.build_lib_dependency_graph()
-    ghidra   = cex.pm.get_plugin_by_name("Ghidra")
+    ghidra   = CEXProject.pm.get_plugin_by_name("Ghidra")
 
     jni_functions = 0
     linked_calls  = 0
@@ -103,11 +102,12 @@ if __name__ == "__main__":
                 continue
             jni_offsets.append(jni_method.offset)
 
-        if len(jni_functions) == 0:
+        if len(jni_offsets) == 0:
             continue
 
+        proj = CEXProject(lib.libpath, plugins=["Ghidra"])
         define_functions_ghidra(ghidra, lib.libpath, jni_offsets)
-        cg = cex.get_callgraph(lib.libpath, plugins=["Ghidra"])
+        cg = proj.get_callgraph()
 
         for off in jni_offsets:
             jni_functions += 1

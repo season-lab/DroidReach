@@ -7,7 +7,7 @@ import os
 
 from collections import namedtuple
 from apk_analyzer import APKAnalyzer
-from cex.cex import CEX
+from cex.cex import CEXProject
 
 log = logging.getLogger("ap.run")
 
@@ -175,12 +175,11 @@ if __name__ == "__main__":
 
     setup_logging()
     log.info(f"running android-paths on {apk_path}")
-    cex          = CEX()
-    apk_analyzer = APKAnalyzer(cex, apk_path)
+    apk_analyzer = APKAnalyzer(apk_path)
     paths_result = apk_analyzer.get_paths_to_native()
 
     # Use accurate callgraph
-    cex.pm.get_plugin_by_name("Ghidra").use_accurate = True
+    CEXProject.pm.get_plugin_by_name("Ghidra").use_accurate = True
 
     apk_analyzer.delete_callgraph()  # free some RAM
     gc.collect()
@@ -230,7 +229,8 @@ if __name__ == "__main__":
     log.info(f"building callgraphs for {len(interesting_libs)} libs")
     callgraphs = list()
     for lib_hash in interesting_libs:
-        cg = cex.get_callgraph(apk_analyzer.get_libpath_from_hash(lib_hash), plugins=["Ghidra"])
+        proj = CEXProject(apk_analyzer.get_libpath_from_hash(lib_hash), plugins=["Ghidra"])
+        cg = proj.get_callgraph()
         callgraphs.append(Callgraph(libhash=lib_hash, graph=cg))
 
     log.info("building supergraph")
@@ -238,7 +238,7 @@ if __name__ == "__main__":
     log.info(f"supergraph ({libs_supergraph.number_of_nodes()} nodes, {libs_supergraph.number_of_edges()} edges) built")
 
     callgraphs = None
-    cex.clear_plugins_cache()  # free some RAM
+    CEXProject.clear_plugins_cache()  # free some RAM
     gc.collect()
 
     native_methods_id_in_supergraph = list(
@@ -253,7 +253,7 @@ if __name__ == "__main__":
         vuln_libname = vuln_libs[vuln_lib_hash]["name"]
 
         for vuln_offset in vuln_offsets:
-            vuln_offset = CEX.rebase_addr(vuln_offset)
+            vuln_offset = CEXProject.rebase_addr(vuln_offset)
             src_id = get_supergraph_id(vuln_lib_hash, vuln_offset)
 
             log.info(f"checking path to {vuln_offset:#x} @ {vuln_libname}")

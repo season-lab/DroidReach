@@ -1,7 +1,6 @@
 import sys
 
 from apk_analyzer import APKAnalyzer
-from cex.cex import CEX
 
 def print_err(msg):
     sys.stderr.write(msg + "\n")
@@ -46,8 +45,7 @@ if __name__ == "__main__":
 
     apk_path = sys.argv[1]
 
-    cex          = CEX()
-    apk_analyzer = APKAnalyzer(cex, apk_path)
+    apk_analyzer = APKAnalyzer(apk_path)
 
     g = apk_analyzer.build_lib_dependency_graph()
     print_dot(g)

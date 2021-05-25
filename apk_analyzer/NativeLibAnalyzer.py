@@ -1,13 +1,15 @@
 import os
+import sys
 import struct
 import rzpipe
 import logging
 import subprocess
 
-try:
-    from .utils import md5_hash, find_jni_functions_angr
-except:
-    from utils import md5_hash, find_jni_functions_angr
+from .utils import md5_hash, find_jni_functions_angr
+
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from cex.cex import CEXProject
+from apk_analyzer.utils import md5_hash, find_jni_functions_angr
 from collections import namedtuple
 
 # FIXME: get rid of "analyzer" in JniFunctionDescription and cache on disk
@@ -33,15 +35,14 @@ class NativeLibAnalyzer(object):
     def _open_rz(self):
         return rzpipe.open(self.libpath, flags=["-2"])
 
-    def __init__(self, cex, libpath, use_rizin=False, use_angr=False):
+    def __init__(self, libpath, use_rizin=True, use_angr=False):
         self.use_rizin = use_rizin
-        self.cex = cex
         self.use_angr = use_angr
-        if use_rizin or cex is None:
-            self.use_rizin   = True
-            self.ghidra = None
+        if use_rizin:
+            self.use_rizin = True
+            self.ghidra    = None
         else:
-            self.ghidra = self.cex.pm.get_plugin_by_name("Ghidra")
+            self.ghidra = CEXProject.pm.get_plugin_by_name("Ghidra")
         self.libname = os.path.basename(libpath)
         self.libpath = libpath
         self.libhash = md5_hash(self.libpath)

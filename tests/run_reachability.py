@@ -5,7 +5,7 @@ import gc
 import os
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from cex.cex import CEX
+from cex.cex import CEXProject
 from timeout_decorator import timeout, TimeoutError
 
 SCRIPTDIR = os.path.realpath(os.path.dirname(__file__))
@@ -39,15 +39,15 @@ def getInstructionsCfgAngr(proj, addr):
             res.add(addr)
     return res
 
-cex = CEX()
-cex.pm.get_plugin_by_name("Ghidra").use_accurate = True
+CEXProject.pm.get_plugin_by_name("Ghidra").use_accurate = True
 @timeout(60*15)
 def getInstructionsGhidra(libpath, addr):
-    cg = cex.get_callgraph(libpath, entry=addr, plugins=["Ghidra"])
+    proj = CEXProject(libpath, plugins=["Ghidra"])
+    cg = proj.get_callgraph(entry=addr)
 
     cfgs = list()
     for node in cg.nodes:
-        cfg = cex.get_cfg(libpath, node, plugins=["Ghidra"])
+        cfg = proj.get_cfg(node)
         if cfg is not None:
             cfgs.append(cfg)
 
@@ -82,10 +82,6 @@ def angrCfgDot(proj, addr):
 
     res += "}\n"
     return res
-
-def ghidraCfgDot(libpath, addr):
-    g = cex.get_icfg(libpath, addr, plugins=["Ghidra"])
-    return CEX.to_dot(g)
 
 def run(libpath):
     exported = getExported(libpath)

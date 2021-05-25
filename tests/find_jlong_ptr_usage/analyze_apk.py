@@ -5,7 +5,7 @@ import gc
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 from apk_analyzer import APKAnalyzer
-from cex.cex import CEX
+from cex.cex import CEXProject
 try:
     from .NativeJLongAnalyzer import NativeJLongAnalyzer
 except:
@@ -87,9 +87,7 @@ if __name__ == "__main__":
 
     apk_path = sys.argv[1]
 
-    # cex  = CEX()
-    cex  = None  # Use Rizin for finding JNI functions (faster, but probably less accurate)
-    apka = APKAnalyzer(cex, apk_path)
+    apka = APKAnalyzer(apk_path)
 
     added_libs = set()
     arm_libs   = list()

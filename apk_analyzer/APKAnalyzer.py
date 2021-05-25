@@ -38,13 +38,12 @@ class APKAnalyzer(object):
 
         copyfile(self.apk_path, os.path.join(self.wdir, os.path.basename(self.apk_path)))
 
-    def __init__(self, cex, apk_path):
+    def __init__(self, apk_path):
         if not os.path.exists(apk_path):
             APKAnalyzer.log.error(f"{apk_path} does not exist")
             raise FileNotFoundException(apk_path)
 
         APKAnalyzer.log.info("APKAnalyzer initialization")
-        self.cex = cex
         self.apk_path = apk_path
         self.apk_name = os.path.basename(self.apk_path).replace(".apk", "")
         self.apk_hash = md5_hash(self.apk_path)
@@ -198,8 +197,7 @@ class APKAnalyzer(object):
 
         self._native_lib_analysis = dict()
         for lib in self.get_native_libs():
-            self._native_lib_analysis[lib] = NativeLibAnalyzer(
-                self.cex, lib)
+            self._native_lib_analysis[lib] = NativeLibAnalyzer(lib)
         return self._native_lib_analysis
 
     def get_analyzed_libs(self):
