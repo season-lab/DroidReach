@@ -204,6 +204,19 @@ class APKAnalyzer(object):
         self._analyze_native_libs()
         return list(self._native_lib_analysis.values())
 
+    def get_armv7_libs(self):
+        added_libs = set()
+        arm_libs   = list()
+        libs       = self.get_analyzed_libs()
+        for lib in libs:
+            if lib.arch in {"armeabi", "armeabi-v7a"}:
+                # Relaxed a little bit... If the library is not in a standard location, analyze it
+                if lib.libname in added_libs and ("lib/"+lib.arch) in lib.libpath:
+                    continue
+                added_libs.add(lib.libname)
+                arm_libs.append(lib)
+        return arm_libs
+
     def get_libpath_from_hash(self, lib_hash):
         self._analyze_native_libs()
         for lib_path in self._native_lib_analysis:

@@ -247,9 +247,7 @@ class NativeLibAnalyzer(object):
             endness = "big"
         assert endness in {"big", "little"}
 
-        struct_format = \
-            ("<"   if endness == "little" else ">") + \
-            ("III" if bits == 32          else "LLL")
+        sections = dict()
 
         def get_section_bytes(addr, size):
             return bytes(rz.cmdj(f"pxj {size} @ {addr:#x}"))
@@ -258,7 +256,11 @@ class NativeLibAnalyzer(object):
             return int.from_bytes(data[off:off+(bits//8)], endness)
 
         def read_byte(addr):
-            return rz.cmdj(f"pxj 1 @ {addr:#x}")[0]
+            for secname in sections:
+                min_addr, max_addr, data = sections[secname]
+                if min_addr <= addr < max_addr:
+                    return data[addr - min_addr]
+            return 255
 
         def read_string(addr):
             res = ""
@@ -276,6 +278,9 @@ class NativeLibAnalyzer(object):
         code_sections = list()
         data_sections = list()
         for sec in rz.cmdj("iSj"):
+            sections[sec["name"]] = \
+                (sec["vaddr"], sec["vaddr"] + sec["vsize"], get_section_bytes(sec["vaddr"], sec["vsize"]))
+
             perm = sec["perm"]
             if perm[1] == "r" and perm[3] != "x":
                 if sec["name"] == ".bss":
@@ -295,11 +300,11 @@ class NativeLibAnalyzer(object):
                     return True
             return False
 
-        for _, min_addr, max_addr in data_sections:
+        for name, min_addr, max_addr in data_sections:
             if max_addr == min_addr:
                 continue
 
-            data = get_section_bytes(min_addr, max_addr - min_addr)
+            data = sections[name][2]
             assert len(data) == max_addr - min_addr
 
             for addr in range(min_addr, max_addr - (bits//8 * 3) + 1):
@@ -331,6 +336,21 @@ class NativeLibAnalyzer(object):
             del data
 
         rz.quit()
+        return self._jni_functions
+
+    def _get_jni_functions_angr(self):
+        jni_functions = list()
+        jni_angr = find_jni_functions_angr(self.libpath)
+        for class_name, method_name, args, addr in jni_angr:
+            class_name = "L" + class_name + ";"
+            jni_functions.append(
+                JniFunctionDescription(
+                    analyzer=self,
+                    class_name=class_name,
+                    method_name=method_name,
+                    args=args.replace(" ", ""),
+                    offset=addr))
+        return jni_functions
 
     def get_jni_functions(self):
         if self._jni_functions is not None:
