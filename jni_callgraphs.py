@@ -4,9 +4,10 @@ import networkx as nx
 import angr
 import time
 import sys
+import cle
 import os
 
-from tests.timeout_decorator import timeout
+from tests.timeout_decorator import timeout, TimeoutError
 from apk_analyzer import APKAnalyzer
 from apk_analyzer.utils import prepare_initial_state
 from cex import to_dot
@@ -135,6 +136,16 @@ if __name__ == "__main__":
         except TimeoutError:
             print("[ERR_TIMEOUT] angr; lib %s" % arm_lib.libpath)
             jni_dyn_functions_angr = list()
+        except NotImplementedError as e:
+            print("[ERR_NOT_IMPLEMENTED] angr; lib %s; msg %s" % (arm_lib.libpath, e))
+            jni_dyn_functions_angr = list()
+        except cle.CLEError as e:
+            print("[ERR_CLE] angr; lib %s; msg %s" % (arm_lib.libpath, e))
+            jni_dyn_functions_angr = list()
+        except Exception as e:
+            print("[ERR_UNKNOWN] angr; lib %s; msg %s" % (arm_lib.libpath, e))
+            cg = nx.DiGraph()
+
         time_angr = time.time() - start
 
         jni_dyn_functions_rizin = list(filter(lambda f: f.class_name == "???", jni_functions_rizin))
@@ -189,7 +200,18 @@ if __name__ == "__main__":
             # os.system("xdot /dev/shm/graph.dot")
 
             start = time.time()
-            cg = callgraph_gen_angr_wrapper(main_bin, jni.offset, proj_ghidra._addresses, demangled_args)
+            try:
+                cg = callgraph_gen_angr_wrapper(main_bin, jni.offset, proj_ghidra._addresses, demangled_args)
+            except NotImplementedError as e:
+                print("[ERR_NOT_IMPLEMENTED] angr; jni %s; msg %s" % (jni, e))
+                cg = nx.DiGraph()
+            except cle.CLEError as e:
+                print("[ERR_CLE] angr; jni %s; msg %s" % (jni, e))
+                cg = nx.DiGraph()
+            except Exception as e:
+                print("[ERR_UNKNOWN] angr; jni %s; msg %s" % (jni, e))
+                cg = nx.DiGraph()
+
             angr_time    = time.time() - start
             angr_n_nodes = len(cg.nodes)
             angr_n_edges = len(cg.edges)
@@ -199,7 +221,18 @@ if __name__ == "__main__":
             # os.system("xdot /dev/shm/graph.dot")
 
             start = time.time()
-            cg = callgraph_gen_angr_wrapper(main_bin, jni.offset, proj_ghidra._addresses, demangled_args, other_libs=other_bins)
+            try:
+                cg = callgraph_gen_angr_wrapper(main_bin, jni.offset, proj_ghidra._addresses, demangled_args, other_libs=other_bins)
+            except NotImplementedError as e:
+                print("[ERR_NOT_IMPLEMENTED] angr; jni %s; msg %s" % (jni, e))
+                cg = nx.DiGraph()
+            except cle.CLEError as e:
+                print("[ERR_CLE] angr; lib %s; msg %s" % (jni, e))
+                cg = nx.DiGraph()
+            except Exception as e:
+                print("[ERR_UNKNOWN] angr; jni %s; msg %s" % (jni, e))
+                cg = nx.DiGraph()
+
             angr_all_time    = time.time() - start
             angr_all_n_nodes = len(cg.nodes)
             angr_all_n_edges = len(cg.edges)
