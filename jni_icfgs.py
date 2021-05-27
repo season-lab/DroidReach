@@ -12,7 +12,7 @@ from apk_analyzer import APKAnalyzer
 from apk_analyzer.utils import prepare_initial_state
 from cex import to_dot
 from cex.cex import CEXProject
-from cex.cfg_extractors import CGNodeData
+from cex.cfg_extractors import CFGInstruction, CFGNodeData
 
 def print_err(*msg):
     sys.stderr.write(" ".join(map(str, msg)) + "\n")
@@ -28,13 +28,13 @@ def jni_angr_wrapper(lib):
 
 @timeout(60*10)  # Risky
 def jni_rizin_wrapper(lib):
-    jni_functions_rizin    = lib._get_jni_functions_rizin()
+    jni_functions_rizin = lib._get_jni_functions_rizin()
     return jni_functions_rizin
 
-def callgraph_gen_ghidra_wrapper(proj, addr):
-    return proj.get_callgraph(addr)
+def icfg_gen_ghidra_wrapper(proj, addr):
+    return proj.get_icfg(addr)
 
-def callgraph_gen_angr_wrapper(main_bin, entry, addresses, args, other_libs=None):
+def icfg_gen_angr_wrapper(main_bin, entry, addresses, args, other_libs=None):
     other_libs = other_libs or []
 
     main_opts = { 'base_addr' : addresses[main_bin] }
@@ -65,24 +65,14 @@ def callgraph_gen_angr_wrapper(main_bin, entry, addresses, args, other_libs=None
         fail_fast=True, keep_state=True, starts=[entry],
         context_sensitivity_level=1, call_depth=5, initial_state=state)
 
-    callgraph = proj.kb.callgraph
-    subgraph  = nx.ego_graph(callgraph, entry, radius=sys.maxsize)
-
     g = nx.DiGraph()
-    for addr in subgraph.nodes:
-        fun = proj.kb.functions[addr]
-        if fun.is_simprocedure:
-            continue
-        g.add_node(addr, data=CGNodeData(addr=addr, name=fun.name))
+    for node in cfg.graph.nodes:
+        g.add_node(node.addr, data=CFGNodeData(node.addr, [CFGInstruction(node.addr, [], "???")], []))
 
-    for src, dst, c in subgraph.edges:
-        if c != 0:
-            continue
-        if src not in g.nodes or dst not in g.nodes:
-            continue
-        g.add_edge(src, dst)
+    for node_src, node_dst in cfg.graph.edges:
+        g.add_edge(node_src.addr, node_dst.addr)
 
-    return g
+    return nx.ego_graph(g, entry, radius=sys.maxsize)
 
 def find_java_jni(jni, java_natives):
     for class_name, method_name, args_str in java_natives:
@@ -140,7 +130,7 @@ if __name__ == "__main__":
             jni_dyn_functions_angr = list()
         except Exception as e:
             print("[ERR_UNKNOWN] angr; lib %s; msg %s" % (arm_lib.libpath, e))
-            cg = nx.DiGraph()
+            icfg = nx.DiGraph()
 
         time_angr = time.time() - start
 
@@ -156,7 +146,7 @@ if __name__ == "__main__":
 
         jni_functions[arm_lib.libpath] = jni_functions_rizin
 
-    # Check callgraphs
+    # Check icfgs
     for libpath in jni_functions:
         jni_descriptions = jni_functions[libpath]
 
@@ -186,55 +176,55 @@ if __name__ == "__main__":
             demangled_args = "Java.lang.Object," + demangled_name[demangled_name.find("(")+1:demangled_name.find(")")].replace(" ", "")
 
             start = time.time()
-            cg = callgraph_gen_ghidra_wrapper(proj_ghidra, jni.offset & 0xfffffffe)
+            icfg = icfg_gen_ghidra_wrapper(proj_ghidra, jni.offset & 0xfffffffe)
             ghidra_time    = time.time() - start
-            ghidra_n_nodes = len(cg.nodes)
-            ghidra_n_edges = len(cg.edges)
+            ghidra_n_nodes = len(icfg.nodes)
+            ghidra_n_edges = len(icfg.edges)
             print_err("ghidra OK")
             # with open("/dev/shm/graph.dot", "w") as fout:
-            #     fout.write(to_dot(cg))
+            #     fout.write(to_dot(icfg))
             # os.system("xdot /dev/shm/graph.dot")
 
             start = time.time()
             try:
-                cg = callgraph_gen_angr_wrapper(main_bin, jni.offset, proj_ghidra._addresses, demangled_args)
+                icfg = icfg_gen_angr_wrapper(main_bin, jni.offset, proj_ghidra._addresses, demangled_args)
             except NotImplementedError as e:
                 print("[ERR_NOT_IMPLEMENTED] angr; jni %s; msg %s" % (jni, e))
-                cg = nx.DiGraph()
+                icfg = nx.DiGraph()
             except cle.CLEError as e:
                 print("[ERR_CLE] angr; jni %s; msg %s" % (jni, e))
-                cg = nx.DiGraph()
+                icfg = nx.DiGraph()
             except Exception as e:
                 print("[ERR_UNKNOWN] angr; jni %s; msg %s" % (jni, e))
-                cg = nx.DiGraph()
+                icfg = nx.DiGraph()
 
             angr_time    = time.time() - start
-            angr_n_nodes = len(cg.nodes)
-            angr_n_edges = len(cg.edges)
+            angr_n_nodes = len(icfg.nodes)
+            angr_n_edges = len(icfg.edges)
             print_err("angr OK")
             # with open("/dev/shm/graph.dot", "w") as fout:
-            #     fout.write(to_dot(cg))
+            #     fout.write(to_dot(icfg))
             # os.system("xdot /dev/shm/graph.dot")
 
             start = time.time()
             try:
-                cg = callgraph_gen_angr_wrapper(main_bin, jni.offset, proj_ghidra._addresses, demangled_args, other_libs=other_bins)
+                icfg = icfg_gen_angr_wrapper(main_bin, jni.offset, proj_ghidra._addresses, demangled_args, other_libs=other_bins)
             except NotImplementedError as e:
                 print("[ERR_NOT_IMPLEMENTED] angr; jni %s; msg %s" % (jni, e))
-                cg = nx.DiGraph()
+                icfg = nx.DiGraph()
             except cle.CLEError as e:
                 print("[ERR_CLE] angr; lib %s; msg %s" % (jni, e))
-                cg = nx.DiGraph()
+                icfg = nx.DiGraph()
             except Exception as e:
                 print("[ERR_UNKNOWN] angr; jni %s; msg %s" % (jni, e))
-                cg = nx.DiGraph()
+                icfg = nx.DiGraph()
 
             angr_all_time    = time.time() - start
-            angr_all_n_nodes = len(cg.nodes)
-            angr_all_n_edges = len(cg.edges)
+            angr_all_n_nodes = len(icfg.nodes)
+            angr_all_n_edges = len(icfg.edges)
             print_err("angr_all OK")
             # with open("/dev/shm/graph.dot", "w") as fout:
-            #     fout.write(to_dot(cg))
+            #     fout.write(to_dot(icfg))
             # os.system("xdot /dev/shm/graph.dot")
 
             print("[CALLGRAPH] lib %s; fun %#x; ghidra nodes %d; ghidra edges %d; ghidra time %f; angr nodes %d; angr edges %d; angr time %f; angr_all nodes %d; angr_all edges %d; angr_all time %f" % \
