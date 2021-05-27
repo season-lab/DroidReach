@@ -67,7 +67,8 @@ def icfg_gen_angr_wrapper(main_bin, entry, addresses, args, other_libs=None):
 
     g = nx.DiGraph()
     for node in cfg.graph.nodes:
-        g.add_node(node.addr, data=CFGNodeData(node.addr, [CFGInstruction(node.addr, [], "???")], []))
+        g.add_node(node.addr, data=CFGNodeData(node.addr,
+            [ CFGInstruction(a, [], "???") for a in node.instruction_addrs ], []))
 
     for node_src, node_dst in cfg.graph.edges:
         g.add_edge(node_src.addr, node_dst.addr)
@@ -82,6 +83,13 @@ def find_java_jni(jni, java_natives):
            return class_name, method_name, args_str
     return None, None, None
 
+def n_distinct_instructions(graph):
+    instructions = set()
+    for addr in graph.nodes:
+        node = graph.nodes[addr]["data"]
+        for i in node.insns:
+            instructions.add(i.addr)
+    return len(instructions)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -180,6 +188,7 @@ if __name__ == "__main__":
             ghidra_time    = time.time() - start
             ghidra_n_nodes = len(icfg.nodes)
             ghidra_n_edges = len(icfg.edges)
+            ghidra_n_insns = n_distinct_instructions(icfg)
             print_err("ghidra OK")
             # with open("/dev/shm/graph.dot", "w") as fout:
             #     fout.write(to_dot(icfg))
@@ -201,6 +210,7 @@ if __name__ == "__main__":
             angr_time    = time.time() - start
             angr_n_nodes = len(icfg.nodes)
             angr_n_edges = len(icfg.edges)
+            angr_n_insns = n_distinct_instructions(icfg)
             print_err("angr OK")
             # with open("/dev/shm/graph.dot", "w") as fout:
             #     fout.write(to_dot(icfg))
@@ -222,10 +232,11 @@ if __name__ == "__main__":
             angr_all_time    = time.time() - start
             angr_all_n_nodes = len(icfg.nodes)
             angr_all_n_edges = len(icfg.edges)
+            angr_all_n_insns = n_distinct_instructions(icfg)
             print_err("angr_all OK")
             # with open("/dev/shm/graph.dot", "w") as fout:
             #     fout.write(to_dot(icfg))
             # os.system("xdot /dev/shm/graph.dot")
 
-            print("[CALLGRAPH] lib %s; fun %#x; ghidra nodes %d; ghidra edges %d; ghidra time %f; angr nodes %d; angr edges %d; angr time %f; angr_all nodes %d; angr_all edges %d; angr_all time %f" % \
-                (libpath, jni.offset, ghidra_n_nodes, ghidra_n_edges, ghidra_time, angr_n_nodes, angr_n_edges, angr_time, angr_all_n_nodes, angr_all_n_edges, angr_all_time))
+            print("[CALLGRAPH] lib %s; fun %#x; ghidra nodes %d; ghidra edges %d; ghidra insns %d; ghidra time %f; angr nodes %d; angr edges %d; angr insns %d; angr time %f; angr_all nodes %d; angr_all edges %d; angr_all insns %d; angr_all time %f" % \
+                (libpath, jni.offset, ghidra_n_nodes, ghidra_n_edges, ghidra_n_insns, ghidra_time, angr_n_nodes, angr_n_edges, angr_n_insns, angr_time, angr_all_n_nodes, angr_all_n_edges, angr_all_n_insns, angr_all_time))
