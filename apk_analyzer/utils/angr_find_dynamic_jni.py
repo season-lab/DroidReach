@@ -69,7 +69,7 @@ def dynamic_register_resolve(project, analysis_center):
                                      normalize=True, iropt_level=1)
         return analysis_center.get_dynamic_register_map()
 
-def find_jni_functions_angr(binary):
+def find_jni_functions_angr(binary, auto_load_libs=False):
     # angr, shut the fuck up
     angr_logger = logging.getLogger('angr')
     angr_logger.propagate = False
@@ -79,7 +79,7 @@ def find_jni_functions_angr(binary):
     nativedroid_logger.propagate = False
 
     analysis_center = AnalysisCenter("", None, None)
-    project = angr.Project(binary)
+    project = angr.Project(binary, auto_load_libs=auto_load_libs)
 
     tmp = dynamic_register_resolve(project, analysis_center)
 

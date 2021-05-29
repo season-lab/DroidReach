@@ -22,8 +22,8 @@ def usage():
     exit(1)
 
 @timeout(60*10)  # Risky
-def jni_angr_wrapper(lib):
-    jni_dyn_functions_angr = lib._get_jni_functions_angr()
+def jni_angr_wrapper(lib, auto_load_libs):
+    jni_dyn_functions_angr = lib._get_jni_functions_angr(auto_load_libs)
     return jni_dyn_functions_angr
 
 @timeout(60*10)  # Risky
@@ -126,7 +126,7 @@ if __name__ == "__main__":
 
         start = time.time()
         try:
-            jni_dyn_functions_angr = jni_angr_wrapper(arm_lib)
+            jni_dyn_functions_angr = jni_angr_wrapper(arm_lib, False)
         except TimeoutError:
             print("[ERR_TIMEOUT] angr; lib %s" % arm_lib.libpath)
             jni_dyn_functions_angr = list()
@@ -138,8 +138,7 @@ if __name__ == "__main__":
             jni_dyn_functions_angr = list()
         except Exception as e:
             print("[ERR_UNKNOWN] angr; lib %s; msg %s" % (arm_lib.libpath, e))
-            icfg = nx.DiGraph()
-
+            jni_dyn_functions_angr = nx.DiGraph()
         time_angr = time.time() - start
 
         jni_dyn_functions_rizin = list(filter(lambda f: f.class_name == "???", jni_functions_rizin))
@@ -149,8 +148,8 @@ if __name__ == "__main__":
         only_rizin = len(jni_dyn_rizin - jni_dyn_angr)
         only_angr  = len(jni_dyn_angr - jni_dyn_rizin)
 
-        print("[JNI_MAPPING] lib %s; n_jni %d; angr unique %d; rizin unique %d; angr time %f; rizin time %f" % \
-            (arm_lib.libpath, len(jni_functions_rizin), only_angr, only_rizin, time_angr, time_rizin))
+        print("[JNI_MAPPING] lib %s; apk_jni: %d; found_jni %d; angr unique %d; rizin unique %d; angr time %f; rizin time %f" % \
+            (arm_lib.libpath, len(native_methods), len(jni_functions_rizin), only_angr, only_rizin, time_angr, time_rizin))
 
         jni_functions[arm_lib.libpath] = jni_functions_rizin
 
@@ -178,6 +177,7 @@ if __name__ == "__main__":
             print_err(jni)
             class_name, method_name, args_str = find_java_jni(jni, native_methods)
             if class_name is None:
+                print("[ERR_NO_JAVA] Jni method not in Java world")
                 continue
 
             demangled_name = apka.demangle(class_name, method_name, args_str)

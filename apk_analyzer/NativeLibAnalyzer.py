@@ -1,16 +1,15 @@
 import os
 import sys
-import struct
+import angr
 import rzpipe
 import logging
 import subprocess
 
-from .utils import md5_hash, find_jni_functions_angr
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from cex.cex import CEXProject
-from apk_analyzer.utils import md5_hash, find_jni_functions_angr
 from collections import namedtuple
+from apk_analyzer.utils import md5_hash, find_jni_functions_angr
 
 # FIXME: get rid of "analyzer" in JniFunctionDescription and cache on disk
 JniFunctionDescription = namedtuple("JniFunctionDescription", ["analyzer", "class_name", "method_name", "args", "offset"])
@@ -150,6 +149,60 @@ class NativeLibAnalyzer(object):
                 return True
         return False
 
+    def get_returned_vtable(self, offset):
+        # Check if a JNI Method that returns a JLong is creating a C++ Object,
+        # and if so return the corresponding vtable
+
+        class new(angr.SimProcedure):
+            def run(self, sim_size):
+                return self.state.heap._malloc(sim_size)
+
+        def get_ret_vals(proj, cfg, addr):
+            ret_vals = list()
+
+            fun = proj.kb.functions[addr]
+            for bb in fun.ret_sites:
+                for node in cfg.model.get_all_nodes(bb.addr):
+                    ret_vals.extend(map(lambda s: (s, s.regs.r0), node.final_states))
+
+            return ret_vals
+
+        def is_cpp_object(state, v):
+            vtable_ptr = state.mem[v].uint32_t.resolved
+            if vtable_ptr.symbolic:
+                return False
+
+            vtable_entry = state.mem[vtable_ptr].uint32_t.resolved
+            if vtable_entry.symbolic:
+                return False
+
+            sec = state.project.loader.find_section_containing(vtable_entry.args[0])
+            return sec is not None and sec.is_executable
+
+        def get_vtable(state, v):
+            return state.mem[v].uint32_t.concrete
+
+        proj = angr.Project(self.libpath, auto_load_libs=False)
+        proj.hook_symbol("_Znwm", new(), replace=True)
+        proj.hook_symbol("_Znwj", new(), replace=True)
+
+        state = proj.factory.blank_state()
+
+        cfg = proj.analyses.CFGEmulated(fail_fast=True, keep_state=True, starts=[offset],
+            context_sensitivity_level=1, call_depth=5, initial_state=state)
+        ret_vals = get_ret_vals(proj, cfg, offset)
+
+        vtables = list()
+        for state, v in ret_vals:
+            if is_cpp_object(state, v):
+                vtables.append(get_vtable(state, v))
+
+        if len(vtables) == 0:
+            return None
+        if len(vtables) > 1:
+            NativeLibAnalyzer.log.warning("Detected more than one vtable on jni function @ %#x" % offset)
+        return vtables[0]
+
     def _get_jni_functions_ghidra(self):
         self._jni_functions = list()
 
@@ -278,13 +331,14 @@ class NativeLibAnalyzer(object):
         code_sections = list()
         data_sections = list()
         for sec in rz.cmdj("iSj"):
+            if sec["name"] == ".bss":
+                continue
+
             sections[sec["name"]] = \
                 (sec["vaddr"], sec["vaddr"] + sec["vsize"], get_section_bytes(sec["vaddr"], sec["vsize"]))
 
             perm = sec["perm"]
             if perm[1] == "r" and perm[3] != "x":
-                if sec["name"] == ".bss":
-                    continue
                 data_sections.append(
                     (sec["name"], sec["vaddr"], sec["vaddr"] + sec["vsize"])
                 )
@@ -338,9 +392,9 @@ class NativeLibAnalyzer(object):
         rz.quit()
         return self._jni_functions
 
-    def _get_jni_functions_angr(self):
+    def _get_jni_functions_angr(self, auto_load_libs=False):
         jni_functions = list()
-        jni_angr = find_jni_functions_angr(self.libpath)
+        jni_angr = find_jni_functions_angr(self.libpath, auto_load_libs)
         for class_name, method_name, args, addr in jni_angr:
             class_name = "L" + class_name + ";"
             jni_functions.append(
@@ -395,6 +449,6 @@ if __name__ == "__main__":
         print("USAGE: %s <lib_path>" % sys.argv[0])
         exit(1)
 
-    a = NativeLibAnalyzer(None, sys.argv[1])
+    a = NativeLibAnalyzer(sys.argv[1])
     for fun in a.get_jni_functions():
         print(fun)
