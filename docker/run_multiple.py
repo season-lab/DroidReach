@@ -69,6 +69,7 @@ if __name__ == "__main__":
 
         for i in to_erase:
             del threads[i]
+            break
 
         if len(to_erase) == 0:
             time.sleep(10)
