@@ -198,7 +198,12 @@ if __name__ == "__main__":
             # os.system("xdot /dev/shm/graph.dot")
 
             start = time.time()
-            icfg = icfg_gen_ghidra_wrapper(proj_ghidra_angr, jni.offset & 0xfffffffe)
+            try:
+                icfg = icfg_gen_ghidra_wrapper(proj_ghidra_angr, jni.offset & 0xfffffffe)
+            except Exception as e:
+                print("[ERR_UNKNOWN] ghidra_angr; jni %s; msg %s" % (jni, e))
+                icfg = nx.DiGraph()
+
             ghidra_angr_time    = time.time() - start
             ghidra_angr_n_nodes = len(icfg.nodes)
             ghidra_angr_n_edges = len(icfg.edges)
