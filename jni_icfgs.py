@@ -142,8 +142,13 @@ if __name__ == "__main__":
         time_angr = time.time() - start
 
         jni_dyn_functions_rizin = list(filter(lambda f: f.class_name == "???", jni_functions_rizin))
-        jni_dyn_rizin = set(map(lambda f: (f.method_name, f.args), jni_dyn_functions_rizin))
-        jni_dyn_angr  = set(map(lambda f: (f.method_name, f.args), jni_dyn_functions_angr))
+
+        # Keep only methods that are in the Java world
+        dyn_rizin_java_world = list(filter(lambda f: find_java_jni(f, native_methods)[0] is not None), jni_dyn_functions_rizin)
+        dyn_angr_java_world  = list(filter(lambda f: find_java_jni(f, native_methods)[0] is not None), jni_dyn_functions_angr)
+
+        jni_dyn_rizin = set(map(lambda f: (f.method_name, f.args), dyn_rizin_java_world))
+        jni_dyn_angr  = set(map(lambda f: (f.method_name, f.args), dyn_angr_java_world))
 
         only_rizin = len(jni_dyn_rizin - jni_dyn_angr)
         only_angr  = len(jni_dyn_angr - jni_dyn_rizin)
@@ -174,7 +179,7 @@ if __name__ == "__main__":
             pass
 
         for jni in jni_descriptions:
-            print_err(jni)
+            print(jni)
             class_name, method_name, args_str = find_java_jni(jni, native_methods)
             if class_name is None:
                 print("[ERR_NO_JAVA] Jni method not in Java world")

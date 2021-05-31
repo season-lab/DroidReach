@@ -6,6 +6,7 @@ from networkx.classes.reportviews import NodeView
 
 from .angr_find_dynamic_jni import find_jni_functions_angr
 from .prepare_state import prepare_initial_state
+from .NativeJLongAnalyzer import NativeJLongAnalyzer
 
 def reformat_comp(raw_comp: str):
     """
@@ -55,3 +56,7 @@ def md5_hash(f):
     with open(f,'rb') as f_binary:
         md5 = hashlib.md5(f_binary.read()).hexdigest()
     return md5
+
+def check_if_jlong_as_cpp_obj(lib, offset, demangled_args):
+    a = NativeJLongAnalyzer(lib)
+    return a.check_cpp_obj(offset, demangled_args)

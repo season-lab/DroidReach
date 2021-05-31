@@ -9,10 +9,10 @@ from collections import namedtuple
 from androguard.misc import AnalyzeAPK
 from .JavaNameDemangler import JavaNameDemangler, FailedDemanglingError
 from .NativeLibAnalyzer import NativeLibAnalyzer
-from .utils import md5_hash, get_native_methods
+from .utils import md5_hash, get_native_methods, check_if_jlong_as_cpp_obj
 from .utils.app_component import AppComponent
 
-NativeMethod = namedtuple("NativeMethod", ["name", "signature", "lib", "offset"])
+NativeMethod = namedtuple("NativeMethod", ["class_name", "method_name", "args_str", "libpath", "libhash", "offset"])
 
 LOADLIB_TARGET = 'Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V'
 
@@ -25,6 +25,11 @@ class FileNotFoundException(APKAnalyzerError):
         super().__init__(self.message)
 
 class APKAnalyzer(object):
+    # FIXME: a refactoring is required
+    #        probably we can use JNIFunctionDescription (defined by NativeLibAnalyzer) only locally
+    #        and always return NativeMethod instances. Furthermore, we HAVE to get rid of 'analyzer'
+    #        ptrs and only use the API get_native_analyzer
+
     log = logging.getLogger("ap.APKAnalyzer")
     log.setLevel(logging.WARNING)
 
@@ -228,6 +233,9 @@ class APKAnalyzer(object):
     def get_libname_from_hash(self, lib_hash):
         return os.path.basename(self.get_libpath_from_hash(lib_hash))
 
+    def get_native_analyzer(self, lib_hash):
+        return self._native_lib_analysis[self.get_libpath_from_hash(lib_hash)]
+
     def find_native_implementations(self, method_name, class_name, args_str, lib_whitelist=None):
         APKAnalyzer.log.info(f"looking for native implementation of {method_name} of class {class_name}")
         native_libs = self._analyze_native_libs()
@@ -267,3 +275,46 @@ class APKAnalyzer(object):
             native_signatures))
 
         return list(zip(class_names, native_names, args_strings))
+
+    def find_native_methods_implementations(self, lib_whitelist=None):
+        # Among all the native methods detected in Java, return the subset
+        # of them for which we can find the native implementation
+
+        res = list()
+        for class_name, method_name, args_str in self.find_native_methods():
+            native_impls = self.find_native_implementations(method_name, class_name, args_str, lib_whitelist)
+            if len(native_impls) == 0:
+                continue
+
+            native_impl = native_impls[0]
+            res.append(
+                NativeMethod(
+                    class_name, method_name, args_str, native_impl.analyzer.libpath, native_impl.analyzer.libhash, native_impl.offset)
+            )
+
+        return res
+
+    def jlong_as_cpp_obj(self, native_method: NativeMethod):
+        # Check whether the native method has a jlong that is used as a C++ ptr (we detect vcalls)
+
+        demangled_name = self.demangle(native_method.class_name, native_method.method_name, native_method.args_str)
+        assert demangled_name is not None
+
+        demangled_args = demangled_name[demangled_name.find("(")+1:demangled_name.find(")")]
+        demangled_args = demangled_args.replace(" ", "")
+        if "long" not in demangled_args:
+            return list()
+
+        return check_if_jlong_as_cpp_obj(native_method.libpath, native_method.offset, demangled_args)
+
+    def vtable_from_jlong_ret(self, native_method: NativeMethod):
+        # Check whether the return value of the native method is a C++ obj ptr, and if so it returns
+        # the pointer to the vtable corresponding to the obj (polymorfism is required). Otherwise returns None
+
+        demangled_name = self.demangle(native_method.class_name, native_method.method_name, native_method.args_str)
+        ret_type = demangled_name.split(": ")[1].split(" ")[0]
+        if ret_type != "long":
+            return None
+
+        a = self.get_native_analyzer(native_method.libhash)
+        return a.get_returned_vtable(native_method.offset)

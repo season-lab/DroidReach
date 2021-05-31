@@ -73,3 +73,6 @@ if __name__ == "__main__":
 
         if len(to_erase) == 0:
             time.sleep(10)
+
+    for t in threads:
+        t.join()
