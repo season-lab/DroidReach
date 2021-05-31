@@ -3,15 +3,12 @@ import claripy
 import angr
 import sys
 import cle
-import os
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
-from apk_analyzer.utils.jni_stubs.java_type import get_type, get_type_size
-from apk_analyzer.utils.angr_find_dynamic_jni import AnalysisCenter
-from apk_analyzer.utils.jni_stubs.jni_type.jni_native_interface import JNINativeInterface, JObject
+from .jni_stubs.java_type import get_type, get_type_size
+from .angr_find_dynamic_jni import AnalysisCenter
+from .jni_stubs.jni_type.jni_native_interface import JNINativeInterface, JObject
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from timeout_decorator import timeout, TimeoutError
+from .timeout_decorator import timeout, TimeoutError
 
 # angr, shut the fuck up
 angr_logger = logging.getLogger('angr')
