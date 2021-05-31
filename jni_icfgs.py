@@ -144,8 +144,8 @@ if __name__ == "__main__":
         jni_dyn_functions_rizin = list(filter(lambda f: f.class_name == "???", jni_functions_rizin))
 
         # Keep only methods that are in the Java world
-        dyn_rizin_java_world = list(filter(lambda f: find_java_jni(f, native_methods)[0] is not None), jni_dyn_functions_rizin)
-        dyn_angr_java_world  = list(filter(lambda f: find_java_jni(f, native_methods)[0] is not None), jni_dyn_functions_angr)
+        dyn_rizin_java_world = list(filter(lambda f: find_java_jni(f, native_methods)[0] is not None, jni_dyn_functions_rizin))
+        dyn_angr_java_world  = list(filter(lambda f: find_java_jni(f, native_methods)[0] is not None, jni_dyn_functions_angr))
 
         jni_dyn_rizin = set(map(lambda f: (f.method_name, f.args), dyn_rizin_java_world))
         jni_dyn_angr  = set(map(lambda f: (f.method_name, f.args), dyn_angr_java_world))
