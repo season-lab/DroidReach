@@ -165,7 +165,8 @@ if __name__ == "__main__":
         main_bin   = libpath
         other_bins = list(map(lambda l: l.libpath, filter(lambda l: l.libpath != libpath, arm_libs)))
 
-        proj_ghidra = CEXProject(main_bin, other_bins, plugins=["Ghidra"])
+        proj_ghidra      = CEXProject(main_bin, other_bins, plugins=["Ghidra"])
+        proj_ghidra_angr = CEXProject(main_bin, other_bins, plugins=["Ghidra", "AngrEmulated"])
 
         offsets = list()
         for jni in jni_descriptions:
@@ -174,9 +175,6 @@ if __name__ == "__main__":
         start = time.time()
         ghidra.define_functions(libpath, offsets)
         print("[GHIDRA] def funcs time %f" % (time.time() - start))
-
-        def angr_state_builder(proj):
-            pass
 
         for jni in jni_descriptions:
             print(jni)
@@ -195,6 +193,17 @@ if __name__ == "__main__":
             ghidra_n_edges = len(icfg.edges)
             ghidra_n_insns = n_distinct_instructions(icfg)
             print_err("ghidra OK")
+            # with open("/dev/shm/graph.dot", "w") as fout:
+            #     fout.write(to_dot(icfg))
+            # os.system("xdot /dev/shm/graph.dot")
+
+            start = time.time()
+            icfg = icfg_gen_ghidra_wrapper(proj_ghidra_angr, jni.offset & 0xfffffffe)
+            ghidra_angr_time    = time.time() - start
+            ghidra_angr_n_nodes = len(icfg.nodes)
+            ghidra_angr_n_edges = len(icfg.edges)
+            ghidra_angr_n_insns = n_distinct_instructions(icfg)
+            print_err("ghidra_angr OK")
             # with open("/dev/shm/graph.dot", "w") as fout:
             #     fout.write(to_dot(icfg))
             # os.system("xdot /dev/shm/graph.dot")
@@ -243,5 +252,5 @@ if __name__ == "__main__":
             #     fout.write(to_dot(icfg))
             # os.system("xdot /dev/shm/graph.dot")
 
-            print("[CALLGRAPH] lib %s; fun %#x; ghidra nodes %d; ghidra edges %d; ghidra insns %d; ghidra time %f; angr nodes %d; angr edges %d; angr insns %d; angr time %f; angr_all nodes %d; angr_all edges %d; angr_all insns %d; angr_all time %f" % \
-                (libpath, jni.offset, ghidra_n_nodes, ghidra_n_edges, ghidra_n_insns, ghidra_time, angr_n_nodes, angr_n_edges, angr_n_insns, angr_time, angr_all_n_nodes, angr_all_n_edges, angr_all_n_insns, angr_all_time))
+            print("[CALLGRAPH] lib %s; fun %#x; ghidra nodes %d; ghidra edges %d; ghidra insns %d; ghidra time %f; ghidra angr nodes %d; ghidra angr edges %d; ghidra angr insns %d; ghidra angr time %f; angr nodes %d; angr edges %d; angr insns %d; angr time %f; angr_all nodes %d; angr_all edges %d; angr_all insns %d; angr_all time %f" % \
+                (libpath, jni.offset, ghidra_n_nodes, ghidra_n_edges, ghidra_n_insns, ghidra_time, ghidra_angr_n_nodes, ghidra_angr_n_edges, ghidra_angr_n_insns, ghidra_angr_time, angr_n_nodes, angr_n_edges, angr_n_insns, angr_time, angr_all_n_nodes, angr_all_n_edges, angr_all_n_insns, angr_all_time))
