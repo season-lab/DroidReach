@@ -6,7 +6,7 @@ import gc
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 from apk_analyzer import APKAnalyzer
-from cex.cex import CEXProject
+from cex_src.cex import CEXProject
 
 def usage():
     print("USAGE: %s <apk_path>" % sys.argv[0])

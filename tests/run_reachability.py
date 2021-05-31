@@ -5,7 +5,7 @@ import gc
 import os
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from cex.cex import CEXProject
+from cex_src.cex import CEXProject
 from timeout_decorator import timeout, TimeoutError
 
 SCRIPTDIR = os.path.realpath(os.path.dirname(__file__))

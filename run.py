@@ -7,7 +7,7 @@ import os
 
 from collections import namedtuple
 from apk_analyzer import APKAnalyzer
-from cex.cex import CEXProject
+from cex_src.cex import CEXProject
 
 log = logging.getLogger("ap.run")
 

@@ -10,9 +10,9 @@ import os
 from tests.timeout_decorator import timeout, TimeoutError
 from apk_analyzer import APKAnalyzer
 from apk_analyzer.utils import prepare_initial_state
-from cex import to_dot
-from cex.cex import CEXProject
-from cex.cfg_extractors import CFGInstruction, CFGNodeData
+from cex_src.cex import to_dot
+from cex_src.cex import CEXProject
+from cex_src.cex.cfg_extractors import CFGInstruction, CFGNodeData
 
 def print_err(*msg):
     sys.stderr.write(" ".join(map(str, msg)) + "\n")

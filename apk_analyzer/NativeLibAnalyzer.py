@@ -7,7 +7,7 @@ import subprocess
 
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from cex.cex import CEXProject
+from cex_src.cex import CEXProject
 from collections import namedtuple
 from apk_analyzer.utils import md5_hash, find_jni_functions_angr
 
