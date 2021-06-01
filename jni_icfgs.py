@@ -138,14 +138,16 @@ if __name__ == "__main__":
             jni_dyn_functions_angr = list()
         except Exception as e:
             print("[ERR_UNKNOWN] angr; lib %s; msg %s" % (arm_lib.libpath, e))
-            jni_dyn_functions_angr = nx.DiGraph()
+            jni_dyn_functions_angr = list()
         time_angr = time.time() - start
 
-        jni_dyn_functions_rizin = list(filter(lambda f: f.class_name == "???", jni_functions_rizin))
+        jni_functions_java_world = set(filter(lambda f: find_java_jni(f, native_methods)[0] is not None, jni_functions_rizin))
+        jni_dyn_functions_rizin  = set(filter(lambda f: f.class_name == "???", jni_functions_rizin))
+        jni_static_funcs_rizin   = set(filter(lambda f: f.class_name != "???", jni_functions_rizin))
 
         # Keep only methods that are in the Java world
-        dyn_rizin_java_world = list(filter(lambda f: find_java_jni(f, native_methods)[0] is not None, jni_dyn_functions_rizin))
-        dyn_angr_java_world  = list(filter(lambda f: find_java_jni(f, native_methods)[0] is not None, jni_dyn_functions_angr))
+        dyn_rizin_java_world = set(filter(lambda f: find_java_jni(f, native_methods)[0] is not None, jni_dyn_functions_rizin))
+        dyn_angr_java_world  = set(filter(lambda f: find_java_jni(f, native_methods)[0] is not None, jni_dyn_functions_angr))
 
         jni_dyn_rizin = set(map(lambda f: (f.method_name, f.args), dyn_rizin_java_world))
         jni_dyn_angr  = set(map(lambda f: (f.method_name, f.args), dyn_angr_java_world))
@@ -153,10 +155,14 @@ if __name__ == "__main__":
         only_rizin = len(jni_dyn_rizin - jni_dyn_angr)
         only_angr  = len(jni_dyn_angr - jni_dyn_rizin)
 
-        print("[JNI_MAPPING] lib %s; apk_jni: %d; found_jni %d; angr unique %d; rizin unique %d; angr time %f; rizin time %f" % \
-            (arm_lib.libpath, len(native_methods), len(jni_functions_rizin), only_angr, only_rizin, time_angr, time_rizin))
+        for method_name, args in (jni_dyn_angr - jni_dyn_rizin):
+            jni = next(filter(lambda f: f.method_name == method_name and f.args == args, dyn_angr_java_world))
+            jni_functions_java_world.append(jni)
 
-        jni_functions[arm_lib.libpath] = jni_functions_rizin
+        print("[JNI_MAPPING] lib %s; apk_jni: %d; found_jni %d; static_jni %d; dyn angr %d; dyn rizin %d; angr unique %d; rizin unique %d; angr time %f; rizin time %f" % \
+            (arm_lib.libpath, len(native_methods), len(jni_functions_java_world), len(jni_static_funcs_rizin), len(dyn_angr_java_world), len(dyn_rizin_java_world), only_angr, only_rizin, time_angr, time_rizin))
+
+        jni_functions[arm_lib.libpath] = jni_functions_java_world
 
     # Check icfgs
     for libpath in jni_functions:

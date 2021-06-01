@@ -396,7 +396,7 @@ class NativeLibAnalyzer(object):
         jni_functions = list()
         jni_angr = find_jni_functions_angr(self.libpath, auto_load_libs)
         for class_name, method_name, args, addr in jni_angr:
-            class_name = "L" + class_name + ";"
+            class_name = class_name.replace("/", ".")
             jni_functions.append(
                 JniFunctionDescription(
                     analyzer=self,
@@ -426,18 +426,8 @@ class NativeLibAnalyzer(object):
             for m in self._jni_functions:
                 found_methods.add(m.method_name)
 
-            jni_angr = find_jni_functions_angr(self.libpath)
-            for class_name, method_name, args, addr in jni_angr:
-                if method_name not in found_methods:
-                    class_name = "L" + class_name + ";"
-                    print("[!] Method", class_name, method_name, args.replace(" ", ""), "found only by angr")
-                    self._jni_functions.append(
-                        JniFunctionDescription(
-                            analyzer=self,
-                            class_name=class_name,
-                            method_name=method_name,
-                            args=args.replace(" ", ""),
-                            offset=addr))
+            jni_angr = self._get_jni_functions_angr()
+            self._jni_functions.extend(jni_angr)
         return self._jni_functions
 
 if __name__ == "__main__":
