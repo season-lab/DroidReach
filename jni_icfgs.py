@@ -13,6 +13,7 @@ from apk_analyzer.utils import prepare_initial_state
 from cex_src.cex import to_dot
 from cex_src.cex import CEXProject
 from cex_src.cex.cfg_extractors import CFGInstruction, CFGNodeData
+from cex_src.cex.cfg_extractors.angr_plugin.common import AngrCfgExtractor
 
 def print_err(*msg):
     sys.stderr.write(" ".join(map(str, msg)) + "\n")
@@ -53,10 +54,7 @@ def icfg_gen_angr_wrapper(main_bin, entry, addresses, args, other_libs=None):
             lib_opts            = lib_opts
         )
     if entry % 2 == 0:
-        blank_state = proj.factory.blank_state()
-        blank_state.ip = entry
-        if blank_state.block().size == 0:
-            # thumb mode
+        if AngrCfgExtractor.is_thumb(proj, entry):
             entry += 1
 
     state = prepare_initial_state(proj, args)

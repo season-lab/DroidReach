@@ -754,7 +754,6 @@ class CallObjectMethod(NativeDroidSimProcedure):
         nativedroid_logger.info('JNINativeInterface SimProcedure: %s', self)
         idx = 1 if isinstance(self, CallStaticTypeMethod) else 2
         method_id = self.arg(idx)
-        assert isinstance(method_id, SimActionObject)
         for annotation in method_id.annotations:
             if isinstance(annotation, JmethodIDAnnotation):
                 class_name = annotation.class_name
