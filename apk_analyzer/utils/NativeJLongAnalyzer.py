@@ -177,11 +177,11 @@ class NativeJLongAnalyzer(object):
             res = self._inner_check_cpp_obj(addr, args)
         except TimeoutError:
             sys.stderr.write("WARNING: %#x timeout\n" % addr)
-            return False
+            return list()
         except cle.CLEError as e:
             # Most probably "Too many loaded modules for TLS to handle"
             sys.stderr.write("WARNING: CLEError %s\n" % str(e))
-            return False
+            return list()
         # except:
         #     sys.stderr.write("WARNING: unknown error\n")
         #     return False

@@ -8,8 +8,10 @@ import subprocess
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from cex_src.cex import CEXProject
+from cex_src.cex.cfg_extractors.angr_plugin.common import AngrCfgExtractor
 from collections import namedtuple
 from apk_analyzer.utils import md5_hash, find_jni_functions_angr
+from apk_analyzer.utils.prepare_state import prepare_initial_state
 
 # FIXME: get rid of "analyzer" in JniFunctionDescription and cache on disk
 JniFunctionDescription = namedtuple("JniFunctionDescription", ["analyzer", "class_name", "method_name", "args", "offset"])
@@ -186,7 +188,11 @@ class NativeLibAnalyzer(object):
         proj.hook_symbol("_Znwm", new(), replace=True)
         proj.hook_symbol("_Znwj", new(), replace=True)
 
-        state = proj.factory.blank_state()
+        if AngrCfgExtractor.is_thumb(proj, offset):
+            offset += 1
+
+        # Set JNI SimProcedures
+        state = prepare_initial_state(proj, "")
 
         cfg = proj.analyses.CFGEmulated(fail_fast=True, keep_state=True, starts=[offset],
             context_sensitivity_level=1, call_depth=5, initial_state=state)
