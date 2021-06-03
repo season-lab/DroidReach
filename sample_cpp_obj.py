@@ -5,6 +5,8 @@ import os
 from apk_analyzer import APKAnalyzer
 import cex_src.cex as cex
 
+SHOW_GRAPHS = False
+
 def usage():
     print("USAGE: %s <apk>" % sys.argv[0])
     exit(1)
@@ -61,9 +63,20 @@ if __name__ == "__main__":
         proj = cex.CEXProject(native_method.libpath, plugins=["Ghidra", "AngrEmulated"])
         angr_emu.set_state_constructor(native_method.offset, constructor)
 
-        cg = proj.get_callgraph(native_method.offset)
+        cg_with_state = proj.get_callgraph(native_method.offset)
 
-        dot_str = cex.to_dot(cg)
-        with open("/dev/shm/graph.dot", "w") as fout:
-            fout.write(dot_str)
-        os.system("xdot /dev/shm/graph.dot")
+        angr_emu.del_state_constructor(native_method.offset)
+        cg_without_state = proj.get_callgraph(native_method.offset)
+
+        print("[CG_DATA] lib %s; off %#x; cg state %d; cg no state %d" % (native_method.libpath, native_method.offset, len(cg_with_state.nodes), len(cg_without_state.nodes)))
+
+        if SHOW_GRAPHS:
+            dot_str = cex.to_dot(cg_with_state)
+            with open("/dev/shm/graph_state.dot", "w") as fout:
+                fout.write(dot_str)
+            os.system("xdot /dev/shm/graph_state.dot")
+
+            dot_str = cex.to_dot(cg_without_state)
+            with open("/dev/shm/graph_no_state.dot", "w") as fout:
+                fout.write(dot_str)
+            os.system("xdot /dev/shm/graph_no_state.dot")
