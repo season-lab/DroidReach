@@ -188,7 +188,7 @@ class NativeLibAnalyzer(object):
         proj.hook_symbol("_Znwm", new(), replace=True)
         proj.hook_symbol("_Znwj", new(), replace=True)
 
-        if AngrCfgExtractor.is_thumb(proj, offset):
+        if offset % 2 == 0 and AngrCfgExtractor.is_thumb(proj, offset):
             offset += 1
 
         # Set JNI SimProcedures

@@ -53,9 +53,8 @@ def icfg_gen_angr_wrapper(main_bin, entry, addresses, args, other_libs=None):
             force_load_libs     = other_libs,
             lib_opts            = lib_opts
         )
-    if entry % 2 == 0:
-        if AngrCfgExtractor.is_thumb(proj, entry):
-            entry += 1
+    if entry % 2 == 0 and AngrCfgExtractor.is_thumb(proj, entry):
+        entry += 1
 
     state = prepare_initial_state(proj, args)
 
