@@ -141,7 +141,7 @@ if __name__ == "__main__":
 
         jni_functions_java_world = set(filter(lambda f: find_java_jni(f, native_methods)[0] is not None, jni_functions_rizin))
         jni_dyn_functions_rizin  = set(filter(lambda f: f.class_name == "???", jni_functions_rizin))
-        jni_static_funcs_rizin   = set(filter(lambda f: f.class_name != "???", jni_functions_rizin))
+        jni_static_funcs_rizin   = set(filter(lambda f: f.class_name != "???", jni_functions_java_world))
 
         # Keep only methods that are in the Java world
         dyn_rizin_java_world = set(filter(lambda f: find_java_jni(f, native_methods)[0] is not None, jni_dyn_functions_rizin))
@@ -155,7 +155,7 @@ if __name__ == "__main__":
 
         for method_name, args in (jni_dyn_angr - jni_dyn_rizin):
             jni = next(filter(lambda f: f.method_name == method_name and f.args == args, dyn_angr_java_world))
-            jni_functions_java_world.append(jni)
+            jni_functions_java_world.add(jni)
 
         print("[JNI_MAPPING] lib %s; apk_jni: %d; found_jni %d; static_jni %d; dyn angr %d; dyn rizin %d; angr unique %d; rizin unique %d; angr time %f; rizin time %f" % \
             (arm_lib.libpath, len(native_methods), len(jni_functions_java_world), len(jni_static_funcs_rizin), len(dyn_angr_java_world), len(dyn_rizin_java_world), only_angr, only_rizin, time_angr, time_rizin))
