@@ -80,6 +80,15 @@ def find_java_jni(jni, java_natives):
            return class_name, method_name, args_str
     return None, None, None
 
+def n_matches_jni(jni, java_natives):
+    n_match = 0
+    for class_name, method_name, args_str in java_natives:
+        if (jni.method_name == method_name) and                                                  \
+           (jni.class_name == "???" or jni.class_name == class_name[1:-1].replace("/", ".")) and \
+           (jni.args == "???" or args_str.startswith(jni.args)):
+           n_match += 1
+    return n_match
+
 def n_distinct_instructions(graph):
     instructions = set()
     for addr in graph.nodes:
@@ -123,7 +132,7 @@ if __name__ == "__main__":
 
         start = time.time()
         try:
-            jni_dyn_functions_angr = jni_angr_wrapper(arm_lib, False)
+            jni_dyn_functions_angr = [] #jni_angr_wrapper(arm_lib, False)
         except TimeoutError:
             print("[ERR_TIMEOUT] angr; lib %s" % arm_lib.libpath)
             jni_dyn_functions_angr = list()
@@ -142,6 +151,8 @@ if __name__ == "__main__":
         jni_dyn_functions_rizin  = set(filter(lambda f: f.class_name == "???", jni_functions_rizin))
         jni_static_funcs_rizin   = set(filter(lambda f: f.class_name != "???", jni_functions_java_world))
 
+        n_clashes = sum(map(lambda f: 1 if n_matches_jni(f, native_methods) > 1 else 0, jni_dyn_functions_rizin))
+
         # Keep only methods that are in the Java world
         dyn_rizin_java_world = set(filter(lambda f: find_java_jni(f, native_methods)[0] is not None, jni_dyn_functions_rizin))
         dyn_angr_java_world  = set(filter(lambda f: find_java_jni(f, native_methods)[0] is not None, jni_dyn_functions_angr))
@@ -156,8 +167,8 @@ if __name__ == "__main__":
             jni = next(filter(lambda f: f.method_name == method_name and f.args == args, dyn_angr_java_world))
             jni_functions_java_world.add(jni)
 
-        print("[JNI_MAPPING] lib %s; apk_jni: %d; found_jni %d; static_jni %d; dyn angr %d; dyn rizin %d; angr unique %d; rizin unique %d; angr time %f; rizin time %f" % \
-            (arm_lib.libpath, len(native_methods), len(jni_functions_java_world), len(jni_static_funcs_rizin), len(dyn_angr_java_world), len(dyn_rizin_java_world), only_angr, only_rizin, time_angr, time_rizin))
+        print("[JNI_MAPPING] lib %s; apk_jni: %d; n_clashes %d; found_jni %d; static_jni %d; dyn angr %d; dyn rizin %d; angr unique %d; rizin unique %d; angr time %f; rizin time %f" % \
+            (arm_lib.libpath, len(native_methods), n_clashes, len(jni_functions_java_world), len(jni_static_funcs_rizin), len(dyn_angr_java_world), len(dyn_rizin_java_world), only_angr, only_rizin, time_angr, time_rizin))
 
         jni_functions[arm_lib.libpath] = jni_functions_java_world
 
@@ -196,9 +207,9 @@ if __name__ == "__main__":
             ghidra_n_edges = len(icfg.edges)
             ghidra_n_insns = n_distinct_instructions(icfg)
             print_err("ghidra OK")
-            # with open("/dev/shm/graph.dot", "w") as fout:
+            # with open("/dev/shm/ghidra_graph.dot", "w") as fout:
             #     fout.write(to_dot(icfg))
-            # os.system("xdot /dev/shm/graph.dot")
+            # os.system("xdot /dev/shm/ghidra_graph.dot")
 
             start = time.time()
             try:
@@ -212,9 +223,9 @@ if __name__ == "__main__":
             ghidra_angr_n_edges = len(icfg.edges)
             ghidra_angr_n_insns = n_distinct_instructions(icfg)
             print_err("ghidra_angr OK")
-            # with open("/dev/shm/graph.dot", "w") as fout:
+            # with open("/dev/shm/ghidra_angr_graph.dot", "w") as fout:
             #     fout.write(to_dot(icfg))
-            # os.system("xdot /dev/shm/graph.dot")
+            # os.system("xdot /dev/shm/ghidra_angr_graph.dot")
 
             start = time.time()
             try:
