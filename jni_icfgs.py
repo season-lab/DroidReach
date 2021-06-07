@@ -132,7 +132,7 @@ if __name__ == "__main__":
 
         start = time.time()
         try:
-            jni_dyn_functions_angr = [] #jni_angr_wrapper(arm_lib, False)
+            jni_dyn_functions_angr = jni_angr_wrapper(arm_lib, False)
         except TimeoutError:
             print("[ERR_TIMEOUT] angr; lib %s" % arm_lib.libpath)
             jni_dyn_functions_angr = list()
