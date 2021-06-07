@@ -31,7 +31,7 @@ function setup_and_activate_venv {
     virtualenv -p python3 "$SCRIPTPATH/venv"
     source "$SCRIPTPATH/venv/bin/activate"
 
-    pip install -r "$SCRIPTPATH/cex/requirements.txt"
+    pip install -r "$SCRIPTPATH/cex_src/requirements.txt"
     pip install pyyaml
 
     git clone https://github.com/androguard/androguard.git /tmp/androguard
