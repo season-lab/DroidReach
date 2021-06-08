@@ -19,7 +19,6 @@ public:
     ut64    addr;
     ut8*    data;
     ut64    size;
-    RzCore* core;
     bool    has_code;
 
     Section(RzBinSection* section, RzCore* core) {
