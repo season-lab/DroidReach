@@ -1,8 +1,18 @@
+#include <algorithm>
 #include <cassert>
 #include <vector>
+#include <string>
 #include <stdio.h>
 #include <rz_core.h>
 #include <rz_list.h>
+
+#define is_ascii(v) ((v) >= 32 && (v) <= 126)
+
+struct JNINativeMethod {
+    const char * name;
+    const char * signature;
+    void * fnPtr;
+};
 
 class Section {
 public:
@@ -33,6 +43,14 @@ public:
     ut8 read(ut64 taddr) {
         assert (contains(taddr));
         return data[taddr - addr];
+    }
+
+    ut8* ptr_to(ut64 taddr, ut64* rem_size) {
+        if (!contains(taddr))
+            return NULL;
+
+        *rem_size = addr + size - taddr;
+        return &data[taddr - addr];
     }
 
     void print() {
@@ -91,16 +109,53 @@ public:
         assert (0);
     }
 
+    ut8* ptr_to(ut64 addr, ut64* rem_size) {
+        for (Section* s : sections) {
+            if (s->contains(addr))
+                return s->ptr_to(addr, rem_size);
+        }
+
+        return NULL;
+    }
+
     ut32 read_le_32(ut64 addr) {
         return (read(addr + 3) << 24UL) | (read(addr + 2) << 16UL) | (read(addr + 1) << 8UL) | read(addr);
+    }
+
+    const char* read_string(ut64 addr) {
+        static const ut64 g_max_len = 256;
+
+        ut64 rem_size;
+        ut8* s = ptr_to(addr, &rem_size);
+        if (!s)
+            return NULL;
+
+        ut64 i = 0;
+        while (i < std::min(g_max_len, rem_size)) {
+            if (!s[i])
+                break;
+            if (!is_ascii(s[i]))
+                return NULL;
+
+            ++i;
+        }
+
+        if (i > 0)
+            return (const char*)s;
+        return NULL;
     }
 };
 
 static AddressSpace as;
+static std::vector<JNINativeMethod> jni_methods;
 
 static const RzCmdDescArg args_none[] = {{}};
-static const RzCmdDescHelp rz_aJj_help = {
+static const RzCmdDescHelp rz_aJJ_help = {
         .summary = "Detect JNI functions",
+        .args = args_none
+    };
+static const RzCmdDescHelp rz_aJJj_help = {
+        .summary = "Detect JNI functions (json)",
         .args = args_none
     };
 
@@ -126,19 +181,90 @@ static void init_sections(RzCore* core) {
     g_init_done = true;
 }
 
-static RzCmdStatus rz_aJj_handler(RzCore *core, int argc, const char **argv) {
+static void init_jni_methods(RzCore* core) {
+    static bool g_init_done = false;
+    if (g_init_done)
+        return;
+
     init_sections(core);
 
     for (Section* s : as.sections) {
-        s->print();
+        if (s->has_code)
+            continue;
+
+        for (ut64 addr = s->addr; addr < s->addr + s->size - 12; ++addr) {
+            ut64 method_ptr = as.read_le_32(addr);
+            ut64 args_ptr   = as.read_le_32(addr + 4);
+            ut64 fun_ptr    = as.read_le_32(addr + 8);
+
+            if (!as.points_to_code(fun_ptr))
+                continue;
+
+            if (!as.contains(method_ptr))
+                continue;
+
+            if (!as.contains(args_ptr))
+                continue;
+
+            const char* method_name = as.read_string(method_ptr);
+            if (method_name == NULL)
+                continue;
+
+            const char* args = as.read_string(args_ptr);
+            if (args == NULL)
+                continue;
+
+            if (args[0] != '(' || !strchr(args, ')'))
+                continue;
+
+            JNINativeMethod m = {
+                .name = method_name,
+                .signature = args,
+                .fnPtr = (void*)fun_ptr
+            };
+
+            jni_methods.push_back(m);
+        }
     }
 
+    g_init_done = true;
+}
+
+static RzCmdStatus rz_aJJ_handler(RzCore *core, int argc, const char **argv) {
+    init_jni_methods(core);
+
+    puts("dynamic JNI:");
+    for (JNINativeMethod& m : jni_methods) {
+        printf("%s, %s, %#x\n", m.name, m.signature, m.fnPtr);
+    }
     return RZ_CMD_STATUS_OK;
 }
 
-static bool rz_aJj_init(RzCore* core) {
+static RzCmdStatus rz_aJJj_handler(RzCore *core, int argc, const char **argv) {
+    init_jni_methods(core);
+
+    PJ *pj = NULL;
+    pj = pj_new();
+
+    pj_a(pj);
+    for (JNINativeMethod& m : jni_methods) {
+        pj_o(pj);
+        pj_ks(pj, "name", m.name);
+        pj_ks(pj, "signature", m.signature);
+        pj_kn(pj, "fnPtr", (ut64)m.fnPtr);
+        pj_end(pj);
+    }
+    pj_end(pj);
+
+    rz_cons_println(pj_string(pj));
+    pj_free(pj);
+    return RZ_CMD_STATUS_OK;
+}
+
+static bool rz_aJJ_init(RzCore* core) {
     RzCmd* rzcmd = core->rcmd;
-    RzCmdDesc *root_cd = rz_cmd_desc_group_new(rzcmd, rz_cmd_get_root(rzcmd), "aJj", rz_aJj_handler, &rz_aJj_help, &rz_aJj_help);
+    RzCmdDesc *root_cd = rz_cmd_desc_group_new(rzcmd, rz_cmd_get_root(rzcmd), "aJJ", rz_aJJ_handler, &rz_aJJ_help, &rz_aJJ_help);
+    rz_cmd_desc_argv_new(rzcmd, root_cd, "aJJj", rz_aJJj_handler, &rz_aJJj_help);
     return true;
 }
 
@@ -148,7 +274,7 @@ static RzCorePlugin rz_core_plugin_java_jni_finder = {
     /* .license = */ "LGPL3",
     /* .author = */ "bageyelet",
     /* .version = */ NULL,
-    /*.init = */ rz_aJj_init,
+    /*.init = */ rz_aJJ_init,
     /*.fini = */ NULL
 };
 
