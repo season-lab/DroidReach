@@ -41,6 +41,31 @@ class AnalysisCenter(object):
     def get_dynamic_register_map(self):
         return self._dynamic_register_map
 
+def to_dot_icfg(g):
+    # Debug function
+    header  = "digraph {\n\tnode [shape=box];\n"
+    header += "\tgraph [fontname = \"monospace\"];\n"
+    header += "\tnode  [fontname = \"monospace\"];\n"
+    header += "\tedge  [fontname = \"monospace\"];\n"
+    footer  = "}\n"
+
+    body = ""
+    for node in g.nodes:
+        addr  = node.addr
+        label = ""
+        if node.block is None:
+            print("block for addr " + hex(addr) + " is None!")
+            continue
+
+        for insn in node.block.disassembly.insns:
+            label += str(insn) + "\l"
+
+        body += "\t\"" + hex(addr) + "\" [label = \"" + label + "\"];\n"
+
+    for src, dst in g.edges:
+        body += "\t\"" + hex(src.addr) + "\" -> \"" + hex(dst.addr) + "\";\n"
+
+    return header + body + footer
 
 def dynamic_register_resolve(project, analysis_center):
     """
@@ -67,6 +92,13 @@ def dynamic_register_resolve(project, analysis_center):
                                      context_sensitivity_level=3, enable_function_hints=False, keep_state=True,
                                      enable_advanced_backward_slicing=False, enable_symbolic_back_traversal=False,
                                      normalize=True, iropt_level=1)
+
+        if False:
+            dot_str = to_dot_icfg(cfg.graph)
+            with open("/dev/shm/g.dot", "w") as fout:
+                fout.write(dot_str)
+            import os; os.system("xdot /dev/shm/g.dot")
+
         return analysis_center.get_dynamic_register_map()
 
 def find_jni_functions_angr(binary, auto_load_libs=False):

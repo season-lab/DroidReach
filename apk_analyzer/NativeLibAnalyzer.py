@@ -324,7 +324,7 @@ class NativeLibAnalyzer(object):
         def read_string(addr):
             res = ""
             i = 0
-            while i < 100:
+            while i < 256:
                 b = read_byte(addr+i)
                 if b == 0:
                     break

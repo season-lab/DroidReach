@@ -35,6 +35,28 @@ def jni_rizin_wrapper(lib):
 def icfg_gen_ghidra_wrapper(proj, addr):
     return proj.get_icfg(addr)
 
+def hook_fp_functions(proj):
+    class DummyEmptyModel(angr.SimProcedure):
+        def run(self, *args):
+            return None
+
+    def hook_with_dummy(name):
+        proj.hook_symbol(name, DummyEmptyModel(), replace=True)
+
+    float_functions = set()
+    for s in proj.loader.symbols:
+        if proj.is_hooked(s.rebased_addr):
+            h = proj.hooked_by(s.rebased_addr)
+            fun_ty = h.cc.func_ty
+            if fun_ty is None:
+                continue
+            if "double" in fun_ty.returnty.name or "float" in fun_ty.returnty.name:
+                float_functions.add(h.display_name)
+
+    to_hook = float_functions
+    for n in to_hook:
+        hook_with_dummy(n)
+
 def icfg_gen_angr_wrapper(main_bin, entry, addresses, args, other_libs=None):
     other_libs = other_libs or []
 
@@ -53,6 +75,8 @@ def icfg_gen_angr_wrapper(main_bin, entry, addresses, args, other_libs=None):
             force_load_libs     = other_libs,
             lib_opts            = lib_opts
         )
+    hook_fp_functions(proj)
+
     if entry % 2 == 0 and AngrCfgExtractor.is_thumb(proj, entry):
         entry += 1
 
