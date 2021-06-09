@@ -16,15 +16,19 @@ struct JNINativeMethod {
 
 class Section {
 public:
-    ut64    addr;
-    ut8*    data;
-    ut64    size;
-    bool    has_code;
+    char* name;
+    ut64  addr;
+    ut8*  data;
+    ut64  size;
+    bool  has_code;
+    bool  is_readable;
 
     Section(RzBinSection* section, RzCore* core) {
-        addr     = section->vaddr;
-        size     = section->size;
-        has_code = section->perm & RZ_PERM_X;
+        addr        = section->vaddr;
+        size        = section->size;
+        name        = section->name;
+        has_code    = section->perm & RZ_PERM_X;
+        is_readable = section->perm & RZ_PERM_R;
 
         data = new ut8[section->size];
 
@@ -53,7 +57,7 @@ public:
     }
 
     void print() {
-        printf("Section @ %#x (%d) [%02x ...]\n", addr, size, data[0]);
+        printf("Section %s @ %#x (%d) [%02x ...]\n", name, addr, size, data[0]);
     }
 };
 
@@ -188,7 +192,7 @@ static void init_jni_methods(RzCore* core) {
     init_sections(core);
 
     for (Section* s : as.sections) {
-        if (s->has_code)
+        if (s->has_code || !s->is_readable)
             continue;
 
         for (ut64 addr = s->addr; addr < s->addr + s->size - 12; ++addr) {

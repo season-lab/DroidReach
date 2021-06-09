@@ -1,10 +1,12 @@
 import os
 import sys
 import angr
+import shutil
 import rzpipe
 import logging
 import subprocess
 
+SCRIPATH = os.path.realpath(os.path.dirname(__file__))
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from cex_src.cex import CEXProject
@@ -34,6 +36,17 @@ class NativeLibAnalyzer(object):
         os.path.realpath(os.path.join(os.path.dirname(__file__), "bin"))]
 
     def _open_rz(self):
+        plugin_folder = subprocess.check_output(["rizin", "-H", "RZ_USER_PLUGINS"]).decode("ascii").strip()
+        if not os.path.exists(plugin_folder):
+            os.makedirs(plugin_folder, exist_ok=True)
+
+        plugin_path = os.path.join(plugin_folder, "jni_finder.so")
+        if not os.path.exists(plugin_path):
+            local_plugin_dir  = os.path.join(SCRIPATH, "bin/rz_jni_finder")
+            local_plugin_file = os.path.join(local_plugin_dir, "jni_finder.so")
+            if not os.path.exists(local_plugin_file):
+                os.system(f"cd {local_plugin_dir} && make")
+            shutil.copy2(local_plugin_file, plugin_path)
         return rzpipe.open(self.libpath, flags=["-2"])
 
     def __init__(self, libpath, use_rizin=True, use_angr=False):
@@ -398,6 +411,36 @@ class NativeLibAnalyzer(object):
         rz.quit()
         return self._jni_functions
 
+    def _get_jni_functions_rizin_native(self):
+        self._jni_functions = list()
+
+        rz = self._open_rz()
+        # Static Functions
+        self._gen_functions(rz=rz)
+        for fun in self._exported_functions:
+            if fun.name.startswith("Java_"):
+                class_name, method_name, args = NativeLibAnalyzer.demangle_jni_name(fun.name)
+                self._jni_functions.append(
+                    JniFunctionDescription(
+                        analyzer=self,
+                        class_name=class_name,
+                        method_name=method_name,
+                        args=args,
+                        offset=fun.offset))
+
+        # Dynamic Functions
+        for jni_method in rz.cmdj("aJJj"):
+            self._jni_functions.append(
+                JniFunctionDescription(
+                    analyzer=self,
+                    class_name="???",
+                    method_name=jni_method["name"],
+                    args=jni_method["signature"].replace(" ", ""),
+                    offset=jni_method["fnPtr"] + 0x400000))
+
+        rz.quit()
+        return self._jni_functions
+
     def _get_jni_functions_angr(self, auto_load_libs=False):
         jni_functions = list()
         jni_angr = find_jni_functions_angr(self.libpath, auto_load_libs)
@@ -425,7 +468,7 @@ class NativeLibAnalyzer(object):
         if not self.use_rizin:
             self._get_jni_functions_ghidra()
         else:
-            self._get_jni_functions_rizin()
+            self._get_jni_functions_rizin_native()
 
         if self.use_angr:
             found_methods = set()

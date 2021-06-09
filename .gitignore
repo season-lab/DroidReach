@@ -5,3 +5,4 @@ tests/*.csv
 
 *.class
 *.pyc
+*.so

@@ -13,7 +13,6 @@ TARGET=$(PLUGNAME).$(LIBEXT)
 
 all:
 	$(CXX) $(CFLAGS) -g -O3 -shared -fPIC jni_finder.cpp -o jni_finder.$(LIBEXT) $(LDFLAGS)
-	$(MAKE) install
 
 .PHONY : install
 install:
