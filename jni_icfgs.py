@@ -29,7 +29,7 @@ def jni_angr_wrapper(lib, auto_load_libs):
 
 @timeout(60*10)  # Risky
 def jni_rizin_wrapper(lib):
-    jni_functions_rizin = lib._get_jni_functions_rizin()
+    jni_functions_rizin = lib._get_jni_functions_rizin_native()
     return jni_functions_rizin
 
 def icfg_gen_ghidra_wrapper(proj, addr):

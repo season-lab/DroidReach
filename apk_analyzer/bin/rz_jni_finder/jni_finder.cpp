@@ -57,7 +57,7 @@ public:
     }
 
     void print() {
-        printf("Section %s @ %#x (%d) [%02x ...]\n", name, addr, size, data[0]);
+        printf("Section %s @ %#llx (%lld) [%02x ...]\n", name, addr, size, data[0]);
     }
 };
 
@@ -238,7 +238,7 @@ static RzCmdStatus rz_aJJ_handler(RzCore *core, int argc, const char **argv) {
 
     puts("dynamic JNI:");
     for (JNINativeMethod& m : jni_methods) {
-        printf("%s, %s, %#x\n", m.name, m.signature, m.fnPtr);
+        printf("%s, %s, %p\n", m.name, m.signature, m.fnPtr);
     }
     return RZ_CMD_STATUS_OK;
 }
