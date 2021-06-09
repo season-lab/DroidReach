@@ -12,7 +12,8 @@ RUN apt-get install -y      \
     git                     \
     curl                    \
     wget                    \
-    unzip
+    unzip                   \
+    pkg-config
 
 RUN pip install meson
 
