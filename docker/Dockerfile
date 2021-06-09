@@ -42,6 +42,8 @@ RUN echo "ubuntu ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/ubuntu && \
 USER    ubuntu
 WORKDIR /home/ubuntu
 
+ENV PATH=$PATH:/home/ubuntu/.local/bin
+
 # Androguard
 RUN git clone https://github.com/androguard/androguard.git /tmp/androguard && \
     cd /tmp/androguard                                                     && \
