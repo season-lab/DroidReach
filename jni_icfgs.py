@@ -9,6 +9,7 @@ import os
 
 from tests.timeout_decorator import timeout, TimeoutError
 from apk_analyzer import APKAnalyzer
+from apk_analyzer.APKAnalyzer import NativeMethod
 from apk_analyzer.utils import prepare_initial_state
 from cex_src.cex import to_dot
 from cex_src.cex import CEXProject
@@ -121,28 +122,9 @@ def n_distinct_instructions(graph):
             instructions.add(i.addr)
     return len(instructions)
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        usage()
-
-    apk_path = sys.argv[1]
-
-    apka     = APKAnalyzer(apk_path)
-    ghidra   = CEXProject.pm.get_plugin_by_name("Ghidra")
-
-    native_methods = apka.find_native_methods()
-    if len(native_methods) == 0:
-        print("[ERR] No native methods")
-        exit(0)
-
-    arm_libs = apka.get_armv7_libs()
-    if len(arm_libs) == 0:
-        print("[ERR] No arm libs")
-        exit(0)
-
-    # Check differences of JNI methods mapping between angr and rizin
+def find_native_from_pool(print_label, libs, method_pool):
     jni_functions = dict()
-    for arm_lib in arm_libs:
+    for arm_lib in libs:
         if not arm_lib.is_jni_lib():
             continue
 
@@ -171,15 +153,15 @@ if __name__ == "__main__":
             jni_dyn_functions_angr = list()
         time_angr = time.time() - start
 
-        jni_functions_java_world = set(filter(lambda f: find_java_jni(f, native_methods)[0] is not None, jni_functions_rizin))
+        jni_functions_java_world = set(filter(lambda f: find_java_jni(f, method_pool)[0] is not None, jni_functions_rizin))
         jni_dyn_functions_rizin  = set(filter(lambda f: f.class_name == "???", jni_functions_rizin))
         jni_static_funcs_rizin   = set(filter(lambda f: f.class_name != "???", jni_functions_java_world))
 
-        n_clashes = sum(map(lambda f: 1 if n_matches_jni(f, native_methods) > 1 else 0, jni_dyn_functions_rizin))
+        n_clashes = sum(map(lambda f: 1 if n_matches_jni(f, method_pool) > 1 else 0, jni_dyn_functions_rizin))
 
         # Keep only methods that are in the Java world
-        dyn_rizin_java_world = set(filter(lambda f: find_java_jni(f, native_methods)[0] is not None, jni_dyn_functions_rizin))
-        dyn_angr_java_world  = set(filter(lambda f: find_java_jni(f, native_methods)[0] is not None, jni_dyn_functions_angr))
+        dyn_rizin_java_world = set(filter(lambda f: find_java_jni(f, method_pool)[0] is not None, jni_dyn_functions_rizin))
+        dyn_angr_java_world  = set(filter(lambda f: find_java_jni(f, method_pool)[0] is not None, jni_dyn_functions_angr))
 
         jni_dyn_rizin = set(map(lambda f: (f.method_name, f.args), dyn_rizin_java_world))
         jni_dyn_angr  = set(map(lambda f: (f.method_name, f.args), dyn_angr_java_world))
@@ -191,14 +173,41 @@ if __name__ == "__main__":
             jni = next(filter(lambda f: f.method_name == method_name and f.args == args, dyn_angr_java_world))
             jni_functions_java_world.add(jni)
 
-        print("[JNI_MAPPING] lib %s; apk_jni: %d; n_clashes %d; found_jni %d; static_jni %d; dyn angr %d; dyn rizin %d; angr unique %d; rizin unique %d; angr time %f; rizin time %f" % \
-            (arm_lib.libpath, len(native_methods), n_clashes, len(jni_functions_java_world), len(jni_static_funcs_rizin), len(dyn_angr_java_world), len(dyn_rizin_java_world), only_angr, only_rizin, time_angr, time_rizin))
+        print("[%s] lib %s; apk_jni: %d; n_clashes %d; found_jni %d; static_jni %d; dyn angr %d; dyn rizin %d; angr unique %d; rizin unique %d; angr time %f; rizin time %f" % \
+            (print_label, arm_lib.libpath, len(method_pool), n_clashes, len(jni_functions_java_world), len(jni_static_funcs_rizin), len(dyn_angr_java_world), len(dyn_rizin_java_world), only_angr, only_rizin, time_angr, time_rizin))
 
         jni_functions[arm_lib.libpath] = jni_functions_java_world
+    return jni_functions
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        usage()
+
+    apk_path = sys.argv[1]
+
+    apka     = APKAnalyzer(apk_path)
+    ghidra   = CEXProject.pm.get_plugin_by_name("Ghidra")
+
+    native_methods = apka.find_native_methods()
+    if len(native_methods) == 0:
+        print("[ERR] No native methods")
+        exit(0)
+
+    arm_libs = apka.get_armv7_libs()
+    if len(arm_libs) == 0:
+        print("[ERR] No arm libs")
+        exit(0)
+
+    # Check differences of JNI methods mapping between angr and rizin (ALL METHODS)
+    _ = find_native_from_pool("JNI_MAPPINGS", arm_libs, native_methods)
+
+    # Check differences of JNI methods mapping between angr and rizin (REACHABLE METHODS)
+    reachable_native_methods = apka.find_reachable_native_methods()
+    jni_functions_reachable = find_native_from_pool("JNI_MAPPING_REACHABLE", arm_libs, reachable_native_methods)
 
     # Check icfgs
-    for libpath in jni_functions:
-        jni_descriptions = jni_functions[libpath]
+    for libpath in jni_functions_reachable:
+        jni_descriptions = jni_functions_reachable[libpath]
 
         main_bin   = libpath
         other_bins = list(map(lambda l: l.libpath, filter(lambda l: l.libpath != libpath, arm_libs)))

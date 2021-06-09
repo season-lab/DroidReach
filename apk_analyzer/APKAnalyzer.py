@@ -276,6 +276,21 @@ class APKAnalyzer(object):
 
         return list(zip(class_names, native_names, args_strings))
 
+    def find_reachable_native_methods(self):
+        paths_result = self.get_paths_to_native()
+        native_signatures = list(paths_result["paths"].keys())
+        native_names = list(map(
+            lambda x: x.split(";->")[1].split("(")[0],
+            native_signatures))
+        class_names  = list(map(
+            lambda x: "L" + x.split(" L")[1].split(";->")[0] + ";",
+            native_signatures))
+        args_strings = list(map(
+            lambda x: ("(" + x.split("(")[1].split(" [access")[0]).replace(" ", ""),
+            native_signatures))
+
+        return list(zip(class_names, native_names, args_strings))
+
     def find_native_methods_implementations(self, lib_whitelist=None):
         # Among all the native methods detected in Java, return the subset
         # of them for which we can find the native implementation
