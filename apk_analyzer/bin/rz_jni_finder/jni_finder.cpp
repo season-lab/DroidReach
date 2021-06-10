@@ -195,7 +195,7 @@ static void init_jni_methods(RzCore* core) {
         if (s->has_code || !s->is_readable)
             continue;
 
-        for (ut64 addr = s->addr; addr < s->addr + s->size - 12; ++addr) {
+        for (ut64 addr = s->addr; addr < s->addr + s->size - 11; ++addr) {
             ut64 method_ptr = as.read_le_32(addr);
             ut64 args_ptr   = as.read_le_32(addr + 4);
             ut64 fun_ptr    = as.read_le_32(addr + 8);
