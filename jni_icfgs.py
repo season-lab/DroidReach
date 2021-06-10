@@ -105,6 +105,15 @@ def find_java_jni(jni, java_natives):
            return class_name, method_name, args_str
     return None, None, None
 
+def find_jni_among_natives(native, jnis):
+    class_name, method_name, args_str = native
+    for jni in jnis:
+        if (jni.method_name == method_name) and                                                  \
+           (jni.class_name == "???" or jni.class_name == class_name[1:-1].replace("/", ".")) and \
+           (jni.args == "???" or args_str.startswith(jni.args)):
+           return jni
+    return None
+
 def n_matches_jni(jni, java_natives):
     n_match = 0
     for class_name, method_name, args_str in java_natives:
@@ -155,7 +164,6 @@ def find_native_from_pool(print_label, libs, method_pool):
 
         jni_functions_java_world = set(filter(lambda f: find_java_jni(f, method_pool)[0] is not None, jni_functions_rizin))
         jni_dyn_functions_rizin  = set(filter(lambda f: f.class_name == "???", jni_functions_rizin))
-        jni_static_funcs_rizin   = set(filter(lambda f: f.class_name != "???", jni_functions_java_world))
 
         n_clashes = sum(map(lambda f: 1 if n_matches_jni(f, method_pool) > 1 else 0, jni_dyn_functions_rizin))
 
@@ -166,15 +174,38 @@ def find_native_from_pool(print_label, libs, method_pool):
         jni_dyn_rizin = set(map(lambda f: (f.method_name, f.args), dyn_rizin_java_world))
         jni_dyn_angr  = set(map(lambda f: (f.method_name, f.args), dyn_angr_java_world))
 
-        only_rizin = len(jni_dyn_rizin - jni_dyn_angr)
-        only_angr  = len(jni_dyn_angr - jni_dyn_rizin)
-
         for method_name, args in (jni_dyn_angr - jni_dyn_rizin):
             jni = next(filter(lambda f: f.method_name == method_name and f.args == args, dyn_angr_java_world))
             jni_functions_java_world.add(jni)
 
+        only_rizin = 0
+        only_angr  = 0
+        found_jni  = 0
+        dyn_angr   = 0
+        dyn_rizin  = 0
+        static     = 0
+        for m in method_pool:
+            jni_rizin = find_jni_among_natives(m, jni_functions_rizin)
+            jni_angr  = find_jni_among_natives(m, jni_dyn_functions_angr)
+
+            if jni_rizin is not None and jni_angr is not None:
+                found_jni += 1
+                dyn_rizin += 1
+                dyn_angr  += 1
+            elif jni_rizin is not None and jni_angr is None:
+                found_jni += 1
+                if jni_rizin.class_name != "???":
+                    static += 1
+                else:
+                    dyn_rizin  += 1
+                    only_rizin += 1
+            elif jni_rizin is None and jni_angr is not None:
+                found_jni += 1
+                dyn_angr  += 1
+                only_angr += 1
+
         print("[%s] lib %s; apk_jni: %d; n_clashes %d; found_jni %d; static_jni %d; dyn angr %d; dyn rizin %d; angr unique %d; rizin unique %d; angr time %f; rizin time %f" % \
-            (print_label, arm_lib.libpath, len(method_pool), n_clashes, len(jni_functions_java_world), len(jni_static_funcs_rizin), len(dyn_angr_java_world), len(dyn_rizin_java_world), only_angr, only_rizin, time_angr, time_rizin))
+            (print_label, arm_lib.libpath, len(method_pool), n_clashes, found_jni, static, dyn_angr, dyn_rizin, only_angr, only_rizin, time_angr, time_rizin))
 
         jni_functions[arm_lib.libpath] = jni_functions_java_world
     return jni_functions
