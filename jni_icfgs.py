@@ -239,6 +239,8 @@ if __name__ == "__main__":
     # Check icfgs
     for libpath in jni_functions_reachable:
         jni_descriptions = jni_functions_reachable[libpath]
+        if len(jni_descriptions) == 0:
+            continue
 
         main_bin   = libpath
         other_bins = list(map(lambda l: l.libpath, filter(lambda l: l.libpath != libpath, arm_libs)))
