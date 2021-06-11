@@ -1,6 +1,7 @@
 #!/usr/env python3
 
 import networkx as nx
+import traceback
 import angr
 import time
 import sys
@@ -159,6 +160,7 @@ def find_native_from_pool(print_label, libs, method_pool):
             jni_dyn_functions_angr = list()
         except Exception as e:
             print("[ERR_UNKNOWN] angr; lib %s; msg %s" % (arm_lib.libpath, e))
+            print(traceback.format_exc())
             jni_dyn_functions_angr = list()
         time_angr = time.time() - start
 
@@ -282,6 +284,7 @@ if __name__ == "__main__":
                 icfg = icfg_gen_ghidra_wrapper(proj_ghidra_angr, jni.offset & 0xfffffffe)
             except Exception as e:
                 print("[ERR_UNKNOWN] ghidra_angr; jni %s; msg %s" % (jni, e))
+                print(traceback.format_exc())
                 icfg = nx.DiGraph()
 
             ghidra_angr_time    = time.time() - start
@@ -304,6 +307,7 @@ if __name__ == "__main__":
                 icfg = nx.DiGraph()
             except Exception as e:
                 print("[ERR_UNKNOWN] angr; jni %s; msg %s" % (jni, e))
+                print(traceback.format_exc())
                 icfg = nx.DiGraph()
 
             angr_time    = time.time() - start
@@ -326,6 +330,7 @@ if __name__ == "__main__":
                 icfg = nx.DiGraph()
             except Exception as e:
                 print("[ERR_UNKNOWN] angr; jni %s; msg %s" % (jni, e))
+                print(traceback.format_exc())
                 icfg = nx.DiGraph()
 
             angr_all_time    = time.time() - start
