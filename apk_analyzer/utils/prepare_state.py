@@ -61,7 +61,7 @@ def prepare_initial_state(proj, arguments):
         argument_type = argument[1]
         typ = get_type(proj, argument_type.replace('/', '.'))
         typ_size = get_type_size(proj, argument_type)
-        data = claripy.BVV(typ.ptr, typ_size)
+        data = claripy.BVV(typ.ptr, proj.arch.bits)
         state.stack_push(data)
         # store the argument summary
         arguments_summary[argument_name] = data
