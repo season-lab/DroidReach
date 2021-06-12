@@ -6,6 +6,7 @@ import sys
 from .jni_stubs.jni_type.jni_native_interface import RegisterNatives
 from .jni_stubs.jni_type.jni_invoke_interface import JNIInvokeInterface
 from .jni_stubs.jni_type.jni_native_interface import NativeDroidSimProcedure
+from .timeout_decorator import timeout
 
 __author__ = "Xingwei Lin"
 __copyright__ = "Copyright 2018, The Argus-SAF Project"
@@ -101,6 +102,7 @@ def dynamic_register_resolve(project, analysis_center):
 
         return analysis_center.get_dynamic_register_map()
 
+@timeout(seconds=900)
 def find_jni_functions_angr(binary, auto_load_libs=False):
     # angr, shut the fuck up
     angr_logger = logging.getLogger('angr')

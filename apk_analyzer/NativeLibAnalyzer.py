@@ -14,6 +14,7 @@ from cex_src.cex.cfg_extractors.angr_plugin.common import AngrCfgExtractor
 from collections import namedtuple
 from apk_analyzer.utils import md5_hash, find_jni_functions_angr
 from apk_analyzer.utils.prepare_state import prepare_initial_state
+from apk_analyzer.utils.timeout_decorator import TimeoutError
 
 # FIXME: get rid of "analyzer" in JniFunctionDescription and cache on disk
 JniFunctionDescription = namedtuple("JniFunctionDescription", ["analyzer", "class_name", "method_name", "args", "offset"])
@@ -95,6 +96,7 @@ class NativeLibAnalyzer(object):
         self._exported_functions = None
         self._imported_functions = None
         self._jni_functions      = None
+        self._jni_functions_angr = None
 
     def __str__(self):
         return "<NativeLibAnalyzer %s [%s]>" % (self.libname, self.arch)
@@ -442,18 +444,25 @@ class NativeLibAnalyzer(object):
         return self._jni_functions
 
     def _get_jni_functions_angr(self, auto_load_libs=False):
-        jni_functions = list()
-        jni_angr = find_jni_functions_angr(self.libpath, auto_load_libs)
+        if self._jni_functions_angr is not None:
+            return self._jni_functions_angr
+
+        self._jni_functions_angr = list()
+        try:
+            jni_angr = find_jni_functions_angr(self.libpath, auto_load_libs)
+        except TimeoutError:
+            jni_angr = list()
+
         for class_name, method_name, args, addr in jni_angr:
             class_name = class_name.replace("/", ".")
-            jni_functions.append(
+            self._jni_functions_angr.append(
                 JniFunctionDescription(
                     analyzer=self,
                     class_name=class_name,
                     method_name=method_name,
                     args=args.replace(" ", ""),
                     offset=addr))
-        return jni_functions
+        return self._jni_functions_angr
 
     def get_jni_functions(self):
         if self._jni_functions is not None:

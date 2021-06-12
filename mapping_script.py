@@ -17,10 +17,9 @@ if __name__ == "__main__":
 
     apk_path = sys.argv[1]
 
-    apka   = APKAnalyzer(apk_path)
-    ghidra = CEXProject.pm.get_plugin_by_name("Ghidra")
+    apka = APKAnalyzer(apk_path)
 
-    native_methods = apka.find_native_methods()
+    native_methods = apka.find_reachable_native_methods()
     if len(native_methods) == 0:
         print("[ERR] No native methods")
         exit(0)
