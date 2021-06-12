@@ -1423,7 +1423,7 @@ class SetIntField(SetTypeField):
                     field_annotation.heap = annotation.heap + '.' + id_annotation.field_name \
                         if annotation.heap else None
                     field_annotation.field_info['is_field'] = True
-                    field_annotation.field_info['field_name'] = id_annotation.field_name
+                    field_annotation.field_info['field_name'] = id_annotation.field_name if id_annotation is not None else "???"
                     field_annotation.field_info['base_annotation'] = annotation
                     annotation.fields_info.append(field_annotation)
 
