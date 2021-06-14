@@ -54,11 +54,17 @@ if __name__ == "__main__":
     n_java_native_methods = len(apka.find_native_methods())
 
     # Number of lib with at least one method with "context"
+    lib_with_native_mappings = set()
     for native in apka.find_native_methods_implementations(lib_whitelist=list(map(lambda l: l.libhash, armv7_libs))):
+        if native.libhash in lib_with_native_mappings:
+            continue
+
         try:
             if len(apka.jlong_as_cpp_obj(native)) > 0:
-                n_lib_with_cpp_context += 1
+                lib_with_native_mappings.add(native.libhash)
+                print("[INFO] found jlong_as_cpp_obj in", native)
         except TimeoutError:
             print("[WARNING] jlong_as_cpp_obj timeout on", native)
+    n_lib_with_cpp_context = len(lib_with_native_mappings)
 
     print(f"[APK_STATISTICS_RESULT] {n_java_instructions}, {n_native_instructions}, {n_java_native_methods}, {n_armv7_libs}, {n_libs_that_links_other_lib}, {n_lib_with_cpp_context}")
