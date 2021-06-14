@@ -59,6 +59,6 @@ if __name__ == "__main__":
             if len(apka.jlong_as_cpp_obj(native)) > 0:
                 n_lib_with_cpp_context += 1
         except TimeoutError:
-            pass
+            print("[WARNING] jlong_as_cpp_obj timeout on", native)
 
     print(f"[APK_STATISTICS_RESULT] {n_java_instructions}, {n_native_instructions}, {n_java_native_methods}, {n_armv7_libs}, {n_libs_that_links_other_lib}, {n_lib_with_cpp_context}")
