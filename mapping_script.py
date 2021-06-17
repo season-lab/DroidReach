@@ -29,6 +29,10 @@ if __name__ == "__main__":
         print("[ERR] No arm libs")
         exit(0)
 
+    print("ARMv7 libs:")
+    for arm_lib in arm_libs:
+        print("\t", arm_lib)
+    print()
     arm_libs = list(map(lambda l: l.libhash, arm_libs))
 
     n_found = 0

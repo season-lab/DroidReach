@@ -172,7 +172,7 @@ def find_native_from_pool(apka, print_label, libs, method_pool):
     angr_unique  = len(angr_found_methods - rizin_found_methods)
 
     # Add angr unique (cached! This should be fast)
-    for class_name, native_name, args_string in angr_found_methods - rizin_found_methods:
+    for class_name, native_name, args_string in (angr_found_methods - rizin_found_methods):
         jnis = apka.find_native_implementations_angr(native_name, class_name, args_string, lib_whitelist=arm_hashes)
         add_to_jni_functions(jnis[0])
 
