@@ -65,6 +65,8 @@ if __name__ == "__main__":
                 print("[INFO] found jlong_as_cpp_obj in", native)
         except TimeoutError:
             print("[WARNING] jlong_as_cpp_obj timeout on", native)
+        except Exception as e:
+            print("[WARNING] jlong_as_cpp_obj unknown error [", str(e), "]")
     n_lib_with_cpp_context = len(lib_with_native_mappings)
 
     print(f"[APK_STATISTICS_RESULT] {n_java_instructions}, {n_native_instructions}, {n_java_native_methods}, {n_armv7_libs}, {n_libs_that_links_other_lib}, {n_lib_with_cpp_context}")
