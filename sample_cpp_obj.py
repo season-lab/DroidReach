@@ -5,7 +5,7 @@ import os
 from apk_analyzer import APKAnalyzer
 import cex_src.cex as cex
 
-SHOW_GRAPHS = False
+SHOW_GRAPHS = True
 
 def usage():
     print("USAGE: %s <apk>" % sys.argv[0])
@@ -60,13 +60,18 @@ if __name__ == "__main__":
             s.regs.r2 = obj
             return s
 
-        proj = cex.CEXProject(native_method.libpath, plugins=["Ghidra", "AngrEmulated"])
-        angr_emu.set_state_constructor(native_method.offset, constructor)
+        off_nothumb = native_method.offset - native_method.offset % 2
+        main_lib    = native_method.libpath
+        other_libs  = list(map(lambda l: l.libpath, filter(lambda l: l.libpath != main_lib, armv7_libs)))
+        print(main_lib, other_libs)
 
-        cg_with_state = proj.get_callgraph(native_method.offset)
+        proj = cex.CEXProject(native_method.libpath, libs=other_libs, plugins=["Ghidra", "AngrEmulated"])
+        angr_emu.set_state_constructor(off_nothumb, constructor)
 
-        angr_emu.del_state_constructor(native_method.offset)
-        cg_without_state = proj.get_callgraph(native_method.offset)
+        cg_with_state = proj.get_callgraph(off_nothumb)
+
+        angr_emu.del_state_constructor(off_nothumb)
+        cg_without_state = proj.get_callgraph(off_nothumb)
 
         print("[CG_DATA] lib %s; off %#x; cg state %d; cg no state %d" % (native_method.libpath, native_method.offset, len(cg_with_state.nodes), len(cg_without_state.nodes)))
 
