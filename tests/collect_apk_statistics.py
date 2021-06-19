@@ -1,11 +1,12 @@
 import shutil
+import rzpipe
 import sys
 import os
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from apk_analyzer import APKAnalyzer
 from cex_src.cex import CEXProject
-from apk_analyzer.utils.timeout_decorator import TimeoutError
+from apk_analyzer.utils.timeout_decorator import TimeoutError, timeout
 from datetime import datetime
 
 def usage():
@@ -16,6 +17,25 @@ def clear_cex_cache(ghidra):
     shutil.rmtree("/dev/shm/cex_projects")
     os.mkdir("/dev/shm/cex_projects")
     ghidra.clear_cache()
+
+@timeout(1800)
+def load_cfg_ghidra_wrapper(ghidra, lib):
+    ghidra._load_cfg_raw(lib)
+    return ghidra.data[armv7_lib.libpath].cfg_raw
+
+def backup_native_code_counter(lib):
+    rz = rzpipe.open(lib, ["-2"])
+    rz.cmd("aaa")
+
+    counter = 0
+    functions = rz.cmdj("aflj")
+    for fun in functions:
+        cfg = rz.cmdj("agj @ %#x" % fun["offset"])[0]
+        for block in cfg["blocks"]:
+            counter += len(block["ops"])
+
+    rz.quit()
+    return counter
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -59,14 +79,21 @@ if __name__ == "__main__":
 
     # Number of native instructions
     ghidra = CEXProject.pm.get_plugin_by_name("Ghidra")
+    rizin  = CEXProject.pm.get_plugin_by_name("Rizin")
     for armv7_lib in armv7_libs:
         print(datetime.now(), "analyzing lib", armv7_lib.libpath)
-        ghidra._load_cfg_raw(armv7_lib.libpath)
-        functions = ghidra.data[armv7_lib.libpath].cfg_raw
+        try:
+            functions = load_cfg_ghidra_wrapper(ghidra, armv7_lib.libpath)
+        except Exception as e:
+            print(datetime.now(), "ghidra analysis failed [", str(e), "]")
+            functions = list()
 
         for fun in functions:
             for block in fun["blocks"]:
                 n_native_instructions += len(block["instructions"])
+        if len(functions) == 0:
+            print(datetime.now(), "using rizin backup")
+            n_native_instructions += backup_native_code_counter(armv7_lib.libpath)
         clear_cex_cache(ghidra)
 
     print(datetime.now(), "n native instructions:", n_native_instructions)
