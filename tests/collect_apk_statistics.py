@@ -7,7 +7,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from apk_analyzer import APKAnalyzer
 from cex_src.cex import CEXProject
 from apk_analyzer.utils.timeout_decorator import TimeoutError, timeout
-from datetime import datetime
+from datetime import date, datetime
 
 def usage():
     print(f"USAGE: {sys.argv[0]} <apk_path>")
@@ -30,9 +30,12 @@ def backup_native_code_counter(lib):
     counter = 0
     functions = rz.cmdj("aflj")
     for fun in functions:
-        cfg = rz.cmdj("agj @ %#x" % fun["offset"])[0]
-        for block in cfg["blocks"]:
-            counter += len(block["ops"])
+        try:
+            cfg = rz.cmdj("agj @ %#x" % fun["offset"])[0]
+            for block in cfg["blocks"]:
+                counter += len(block["ops"])
+        except Exception as e:
+            print(datetime.now(), "error in rizin [", str(e), "]")
 
     rz.quit()
     return counter
