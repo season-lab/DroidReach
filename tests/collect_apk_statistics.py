@@ -7,7 +7,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from apk_analyzer import APKAnalyzer
 from cex_src.cex import CEXProject
 from apk_analyzer.utils.timeout_decorator import TimeoutError, timeout
-from datetime import date, datetime
+from datetime import datetime
 
 def usage():
     print(f"USAGE: {sys.argv[0]} <apk_path>")

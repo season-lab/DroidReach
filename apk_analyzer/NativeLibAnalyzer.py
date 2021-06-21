@@ -279,12 +279,12 @@ class NativeLibAnalyzer(object):
             return s
 
         args = "???"
+        name = replace_tokens(name)
         if "__" in name:
             name, args = name.split("__")
-            args = fix_mangling(replace_tokens(args))
+            args = fix_mangling(args)
             args = "(" + args.replace("_", "/") # return type not present!
 
-        name   = replace_tokens(name)
         tokens = name.split("_")[1:]
 
         method_name = fix_mangling(tokens[-1])
@@ -431,7 +431,12 @@ class NativeLibAnalyzer(object):
                         offset=fun.offset))
 
         # Dynamic Functions
-        for jni_method in rz.cmdj("aJJj"):
+        dyn_functions_raw = rz.cmdj("aJJj")
+        if dyn_functions_raw is None:
+            NativeLibAnalyzer.log.error("Unable to execute aJJj on %s" % self.libpath)
+            dyn_functions_raw = dict()
+
+        for jni_method in dyn_functions_raw:
             self._jni_functions.append(
                 JniFunctionDescription(
                     analyzer=self,
