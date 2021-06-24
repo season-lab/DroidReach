@@ -437,13 +437,30 @@ class NativeLibAnalyzer(object):
             dyn_functions_raw = dict()
 
         for jni_method in dyn_functions_raw:
-            self._jni_functions.append(
-                JniFunctionDescription(
-                    analyzer=self,
-                    class_name="???",
-                    method_name=jni_method["name"],
-                    args=jni_method["signature"].replace(" ", ""),
-                    offset=jni_method["fnPtr"] + 0x400000))
+            if False:
+                off    = jni_method["fnPtr"] + 0x400000
+                to_add = None
+                for i, jni_fun in enumerate(self._jni_functions):
+                    if jni_fun.offset == off:
+                        # both static and dynamic! (yes, it can happen)
+                        to_add = i
+                        break
+
+                if to_add is not None:
+                    self._jni_functions[to_add] = JniFunctionDescription(
+                        analyzer=self,
+                        class_name=self._jni_functions[to_add].class_name,
+                        method_name=jni_method["name"],
+                        args=jni_method["signature"].replace(" ", ""),
+                        offset=jni_method["fnPtr"] + 0x400000)
+            else:
+                self._jni_functions.append(
+                    JniFunctionDescription(
+                        analyzer=self,
+                        class_name="???",
+                        method_name=jni_method["name"],
+                        args=jni_method["signature"].replace(" ", ""),
+                        offset=jni_method["fnPtr"] + 0x400000))
 
         rz.quit()
         return self._jni_functions

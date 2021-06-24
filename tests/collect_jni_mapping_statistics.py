@@ -37,7 +37,7 @@ def find_native_from_pool(apka, print_label, libs, method_pool):
 
     # clear angr cache to have usable times
     for lib in apka.get_analyzed_libs():
-        lib._jni_functions_angr = list()
+        lib._jni_functions_angr = None
 
     jni_functions = dict()
     def add_to_jni_functions(jni):
@@ -67,7 +67,6 @@ def find_native_from_pool(apka, print_label, libs, method_pool):
 
             rizin_found_methods.add((class_name, native_name, args_string))
 
-            # This should be fast since the result is cached
             angr_jnis = apka.find_native_implementations_angr(native_name, class_name, args_string, lib_whitelist=arm_hashes)
             if len(angr_jnis) == 1:
                 clash_resolved_by_angr += 1
