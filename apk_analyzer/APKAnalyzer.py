@@ -236,7 +236,7 @@ class APKAnalyzer(object):
     def get_native_analyzer(self, lib_hash):
         return self._native_lib_analysis[self.get_libpath_from_hash(lib_hash)]
 
-    def find_native_implementations(self, method_name, class_name, args_str, lib_whitelist=None):
+    def find_native_implementations(self, method_name, class_name, args_str, lib_whitelist=None, resolve_clashes_with_angr=False):
         APKAnalyzer.log.info(f"looking for native implementation of {method_name} of class {class_name}")
         native_libs = self._analyze_native_libs()
         res = list()
@@ -252,6 +252,11 @@ class APKAnalyzer(object):
                    # for this reason, I will only check if the first part of the argument string matches with jni_desc.args
 
                     res.append(jni_desc)
+
+        if resolve_clashes_with_angr:
+            angr_jnis = self.find_native_implementations_angr(method_name, class_name, args_str, lib_whitelist=lib_whitelist)
+            if len(angr_jnis) == 1:
+                res = angr_jnis
 
         APKAnalyzer.log.info(f"native implementation: {res}")
         return res
