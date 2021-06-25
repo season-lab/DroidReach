@@ -93,10 +93,11 @@ class NativeLibAnalyzer(object):
                 self.arch = rz_arch + "_" + rz_class
             rz.quit()
 
-        self._exported_functions = None
-        self._imported_functions = None
-        self._jni_functions      = None
-        self._jni_functions_angr = None
+        self._exported_functions   = None
+        self._imported_functions   = None
+        self._jni_functions        = None
+        self._jni_functions_angr   = None
+        self._jni_static_functions = None
 
     def __str__(self):
         return "<NativeLibAnalyzer %s [%s]>" % (self.libname, self.arch)
@@ -413,22 +414,39 @@ class NativeLibAnalyzer(object):
         rz.quit()
         return self._jni_functions
 
-    def _get_jni_functions_rizin_native(self):
-        self._jni_functions = list()
+    def _get_static_functions(self, rz=None):
+        if self._jni_static_functions is not None:
+            return self._jni_static_functions
 
-        rz = self._open_rz()
-        # Static Functions
+        to_close = False
+        if rz is None:
+            to_close = True
+            rz = self._open_rz()
+
+        self._jni_static_functions = list()
         self._gen_functions(rz=rz)
         for fun in self._exported_functions:
             if fun.name.startswith("Java_"):
                 class_name, method_name, args = NativeLibAnalyzer.demangle_jni_name(fun.name)
-                self._jni_functions.append(
+                self._jni_static_functions.append(
                     JniFunctionDescription(
                         analyzer=self,
                         class_name=class_name,
                         method_name=method_name,
                         args=args,
                         offset=fun.offset))
+
+        if to_close:
+            rz.quit()
+        return self._jni_static_functions
+
+    def _get_jni_functions_rizin_native(self):
+        self._jni_functions = list()
+
+        rz = self._open_rz()
+        # Static Functions
+        self._get_static_functions(rz)
+        self._jni_functions += self._jni_static_functions[:]
 
         # Dynamic Functions
         dyn_functions_raw = rz.cmdj("aJJj")
@@ -437,22 +455,21 @@ class NativeLibAnalyzer(object):
             dyn_functions_raw = dict()
 
         for jni_method in dyn_functions_raw:
-            if False:
-                off    = jni_method["fnPtr"] + 0x400000
-                to_add = None
-                for i, jni_fun in enumerate(self._jni_functions):
-                    if jni_fun.offset == off:
-                        # both static and dynamic! (yes, it can happen)
-                        to_add = i
-                        break
+            off    = jni_method["fnPtr"] + 0x400000
+            to_add = None
+            for i, jni_fun in enumerate(self._jni_functions):
+                if jni_fun.offset == off:
+                    # both static and dynamic! (yes, it can happen)
+                    to_add = i
+                    break
 
-                if to_add is not None:
-                    self._jni_functions[to_add] = JniFunctionDescription(
-                        analyzer=self,
-                        class_name=self._jni_functions[to_add].class_name,
-                        method_name=jni_method["name"],
-                        args=jni_method["signature"].replace(" ", ""),
-                        offset=jni_method["fnPtr"] + 0x400000)
+            if to_add is not None:
+                self._jni_functions[to_add] = JniFunctionDescription(
+                    analyzer=self,
+                    class_name=self._jni_functions[to_add].class_name,
+                    method_name=jni_method["name"],
+                    args=jni_method["signature"].replace(" ", ""),
+                    offset=jni_method["fnPtr"] + 0x400000)
             else:
                 self._jni_functions.append(
                     JniFunctionDescription(
@@ -473,6 +490,9 @@ class NativeLibAnalyzer(object):
         try:
             jni_angr = find_jni_functions_angr(self.libpath, auto_load_libs)
         except TimeoutError:
+            jni_angr = list()
+        except Exception as e:
+            NativeLibAnalyzer.log.warning("Unknown error in _get_jni_functions_angr: " + str(e))
             jni_angr = list()
 
         for class_name, method_name, args, addr in jni_angr:

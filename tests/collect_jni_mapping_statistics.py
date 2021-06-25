@@ -21,43 +21,39 @@ def find_native_from_pool(apka, print_label, libs, method_pool):
 
     arm_hashes = list(map(lambda l: l.libhash, libs))
 
-    angr_found_methods = set()
-    start              = time.time()
-    for class_name, native_name, args_string in method_pool:
-        # NOTE: angr has a timeout of 15 minutes per lib
-        jnis = apka.find_native_implementations_angr(native_name, class_name, args_string, lib_whitelist=arm_hashes)
-        if len(jnis) > 0:
-            found_dynamic_angr += 1
-            angr_found_methods.add((class_name, native_name, args_string))
-        elif len(jnis) > 1:
-            found_dynamic_angr += 1
-            angr_clash         += 1
-            angr_found_methods.add((class_name, native_name, args_string))
-    time_angr = time.time() - start
-
-    # clear angr cache to have usable times
-    for lib in apka.get_analyzed_libs():
-        lib._jni_functions_angr = None
-
     jni_functions = dict()
     def add_to_jni_functions(jni):
         if jni.analyzer.libpath not in jni_functions:
             jni_functions[jni.analyzer.libpath] = list()
         jni_functions[jni.analyzer.libpath].append(jni)
 
+    # Static mapping
+    static_methods = set()
+    start          = time.time()
+    for class_name, native_name, args_string in method_pool:
+        jni = apka.find_native_static_implementation(native_name, class_name, args_string, lib_whitelist=arm_hashes)
+        if jni is None:
+            continue
+        found_mapping += 1
+        found_static  += 1
+        static_methods.add((class_name, native_name, args_string))
+        add_to_jni_functions(jni)
+    static_time = time.time() - start
+
+    # Dynamic mapping heuristic
     rizin_found_methods = set()
     start               = time.time()
     for class_name, native_name, args_string in method_pool:
+        if (class_name, native_name, args_string) in static_methods:
+            continue
+
         jnis = apka.find_native_implementations(native_name, class_name, args_string, lib_whitelist=arm_hashes)
         if len(jnis) == 1:
             found_mapping += 1
 
             jni = jnis[0]
-            if jni.class_name != "???":
-                found_static += 1
-            else:
-                found_dynamic_rizin += 1
-                rizin_found_methods.add((class_name, native_name, args_string))
+            found_dynamic_rizin += 1
+            rizin_found_methods.add((class_name, native_name, args_string))
             add_to_jni_functions(jni)
 
         elif len(jnis) > 1:
@@ -77,6 +73,27 @@ def find_native_from_pool(apka, print_label, libs, method_pool):
                     add_to_jni_functions(jni)
     time_rizin = time.time() - start
 
+    # clear angr cache to have usable times
+    for lib in apka.get_analyzed_libs():
+        lib._jni_functions_angr = None
+
+    angr_found_methods = set()
+    start              = time.time()
+    for class_name, native_name, args_string in method_pool:
+        if (class_name, native_name, args_string) in static_methods:
+            continue
+
+        # NOTE: angr has a timeout of 15 minutes per lib
+        jnis = apka.find_native_implementations_angr(native_name, class_name, args_string, lib_whitelist=arm_hashes)
+        if len(jnis) > 0:
+            found_dynamic_angr += 1
+            angr_found_methods.add((class_name, native_name, args_string))
+        elif len(jnis) > 1:
+            found_dynamic_angr += 1
+            angr_clash         += 1
+            angr_found_methods.add((class_name, native_name, args_string))
+    time_angr = time.time() - start
+
     rizin_unique = len(rizin_found_methods - angr_found_methods)
     angr_unique  = len(angr_found_methods - rizin_found_methods)
 
@@ -85,8 +102,8 @@ def find_native_from_pool(apka, print_label, libs, method_pool):
         jnis = apka.find_native_implementations_angr(native_name, class_name, args_string, lib_whitelist=arm_hashes)
         add_to_jni_functions(jnis[0])
 
-    print("[%s] apk_jni: %d; found_jni %d; static_jni %d; dyn angr %d; angr unique %d; angr clashes %d; time angr %f; dyn rizin %d; rizin unique %d; rizin clashes %d; rizin time %f; clash resolved by angr %d" % \
-        (print_label, len(method_pool), found_mapping, found_static, found_dynamic_angr, angr_unique, angr_clash, time_angr, found_dynamic_rizin, rizin_unique, rizin_clash, time_rizin, clash_resolved_by_angr))
+    print("[%s] apk_jni: %d; found_jni %d; static_jni %d; dyn angr %d; angr unique %d; angr clashes %d; time angr %f; dyn rizin %d; rizin unique %d; rizin clashes %d; rizin time %f; clash resolved by angr %d; time static %f" % \
+        (print_label, len(method_pool), found_mapping, found_static, found_dynamic_angr, angr_unique, angr_clash, time_angr, found_dynamic_rizin, rizin_unique, rizin_clash, time_rizin, clash_resolved_by_angr, static_time))
     return jni_functions
 
 
@@ -102,5 +119,11 @@ if __name__ == "__main__":
         print("[ERR] No arm libs")
         exit(0)
 
+    print("[INFO] found %d arm libs" % len(arm_libs))
     reachable_native_methods = apka.find_reachable_native_methods()
+    print("[INFO] found %d reachable native methods" % len(reachable_native_methods))
     jni_functions_reachable  = find_native_from_pool(apka, "JNI_MAPPING_REACHABLE", arm_libs, reachable_native_methods)
+
+    for lib in jni_functions_reachable:
+        for jni in jni_functions_reachable[lib]:
+            print("[MAPPING]", lib, jni.class_name, jni.method_name, jni.args, hex(jni.offset))

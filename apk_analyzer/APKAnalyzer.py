@@ -261,6 +261,26 @@ class APKAnalyzer(object):
         APKAnalyzer.log.info(f"native implementation: {res}")
         return res
 
+    def find_native_static_implementation(self, method_name, class_name, args_str, lib_whitelist=None):
+        APKAnalyzer.log.info(f"looking for native static implementation of {method_name} of class {class_name}")
+        native_libs = self._analyze_native_libs()
+        res = None
+        for lib in native_libs:
+            if lib_whitelist is not None and native_libs[lib].libhash not in lib_whitelist:
+                continue
+            jni_functions = native_libs[lib]._get_static_functions()
+            for jni_desc in jni_functions:
+                if (jni_desc.method_name == method_name) and                                                       \
+                   (jni_desc.class_name == "???" or jni_desc.class_name == class_name[1:-1].replace("/", ".")) and \
+                   (jni_desc.args == "???" or args_str.startswith(jni_desc.args)):
+                   # in Java_* mangling, if args are present, the return value is not, so the string will be cutted (e.g. "(III" instead of "(III)V").
+                   # for this reason, I will only check if the first part of the argument string matches with jni_desc.args
+
+                    res = jni_desc
+
+        APKAnalyzer.log.info(f"native implementation: {res}")
+        return res
+
     def find_native_implementations_angr(self, method_name, class_name, args_str, lib_whitelist=None):
         APKAnalyzer.log.info(f"looking for native implementation of {method_name} of class {class_name} (angr)")
         native_libs = self._analyze_native_libs()
