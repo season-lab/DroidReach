@@ -66,6 +66,8 @@ class APKAnalyzer(object):
         self._jvm_demangler = JavaNameDemangler()
         self._native_libs = None
         self._native_lib_analysis = None
+        self._native_methods = None
+        self._native_methods_reachable = None
 
         APKAnalyzer.log.info("APKAnalyzer initialization done")
 
@@ -308,6 +310,9 @@ class APKAnalyzer(object):
             return None
 
     def find_native_methods(self):
+        if self._native_methods is not None:
+            return self._native_methods
+
         native_signatures = get_native_methods(self.analysis, public_only=False)
         native_names = list(map(
             lambda x: x.split(";->")[1].split("(")[0],
@@ -319,9 +324,13 @@ class APKAnalyzer(object):
             lambda x: ("(" + x.split("(")[1].split(" [access")[0]).replace(" ", ""),
             native_signatures))
 
-        return list(zip(class_names, native_names, args_strings))
+        self._native_methods = list(zip(class_names, native_names, args_strings))
+        return self._native_methods
 
     def find_reachable_native_methods(self):
+        if self._native_methods_reachable is not None:
+            return self._native_methods_reachable
+
         paths_result = self.get_paths_to_native()
         native_signatures = list(paths_result["paths"].keys())
         native_names = list(map(
@@ -334,7 +343,8 @@ class APKAnalyzer(object):
             lambda x: ("(" + x.split("(")[1].split(" [access")[0]).replace(" ", ""),
             native_signatures))
 
-        return list(zip(class_names, native_names, args_strings))
+        self._native_methods_reachable = list(zip(class_names, native_names, args_strings))
+        return self._native_methods_reachable
 
     def find_native_methods_implementations(self, lib_whitelist=None):
         # Among all the native methods detected in Java, return the subset
