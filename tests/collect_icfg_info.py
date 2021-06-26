@@ -272,7 +272,7 @@ if __name__ == "__main__":
         main_lib   = libpath
         other_bins = list(map(lambda l: l.libpath, filter(lambda l: l.libpath != libpath, arm_libs)))
 
-        print("[INFO] processing %d jni functions for lib %s" % (len(jni_data[libpath], libpath)))
+        print("[INFO] processing %d jni functions for lib %s" % (len(jni_data[libpath]), libpath))
 
         if mode == 0:
             gen_icfgs_ghidra(main_lib, other_bins, jni_data[libpath])
