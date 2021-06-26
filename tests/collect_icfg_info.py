@@ -238,6 +238,8 @@ if __name__ == "__main__":
     apka     = APKAnalyzer(apk_path)
     jni_data = dict()
 
+    loaded_jni_functions = 0
+
     log = open(jni_mapping_log, "r")
     for line in log:
         line = line.strip()
@@ -260,12 +262,17 @@ if __name__ == "__main__":
         if libpath not in jni_data:
             jni_data[libpath] = list()
         jni_data[libpath].append((off, args))
+        loaded_jni_functions += 1
     log.close()
+
+    print("[INFO] loaded %d jni functions" % loaded_jni_functions)
 
     arm_libs = apka.get_armv7_libs()
     for libpath in jni_data:
         main_lib   = libpath
         other_bins = list(map(lambda l: l.libpath, filter(lambda l: l.libpath != libpath, arm_libs)))
+
+        print("[INFO] processing %d jni functions for lib %s" % (len(jni_data[libpath], libpath)))
 
         if mode == 0:
             gen_icfgs_ghidra(main_lib, other_bins, jni_data[libpath])
