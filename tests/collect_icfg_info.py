@@ -107,10 +107,18 @@ def gen_icfgs_angr(main_lib, other_libs, off_args):
 
         g = nx.DiGraph()
         for node in cfg.graph.nodes:
+            if node.block is None:
+                continue
+            capstone_insns = node.block.capstone.insns
+            if len(capstone_insns) == 0:
+                continue
+
             g.add_node(node.addr, data=CFGNodeData(node.addr,
                 [ CFGInstruction(a, 0, [], "???") for a in node.instruction_addrs ], []))
 
         for node_src, node_dst in cfg.graph.edges:
+            if node_src.addr not in g.nodes or node_dst.addr not in g.nodes:
+                continue
             g.add_edge(node_src.addr, node_dst.addr)
 
         return nx.ego_graph(g, offset, radius=sys.maxsize)
@@ -156,10 +164,18 @@ def gen_icfgs_angr_all_libs(main_lib, other_libs, off_args):
 
         g = nx.DiGraph()
         for node in cfg.graph.nodes:
+            if node.block is None:
+                continue
+            capstone_insns = node.block.capstone.insns
+            if len(capstone_insns) == 0:
+                continue
+
             g.add_node(node.addr, data=CFGNodeData(node.addr,
                 [ CFGInstruction(a, 0, [], "???") for a in node.instruction_addrs ], []))
 
         for node_src, node_dst in cfg.graph.edges:
+            if node_src.addr not in g.nodes or node_dst.addr not in g.nodes:
+                continue
             g.add_edge(node_src.addr, node_dst.addr)
 
         return nx.ego_graph(g, offset, radius=sys.maxsize)
@@ -203,10 +219,18 @@ def gen_icfgs_angr_all_libs_no_timeout(main_lib, other_libs, off_args):
 
         g = nx.DiGraph()
         for node in cfg.graph.nodes:
+            if node.block is None:
+                continue
+            capstone_insns = node.block.capstone.insns
+            if len(capstone_insns) == 0:
+                continue
+
             g.add_node(node.addr, data=CFGNodeData(node.addr,
                 [ CFGInstruction(a, 0, [], "???") for a in node.instruction_addrs ], []))
 
         for node_src, node_dst in cfg.graph.edges:
+            if node_src.addr not in g.nodes or node_dst.addr not in g.nodes:
+                continue
             g.add_edge(node_src.addr, node_dst.addr)
 
         return nx.ego_graph(g, offset, radius=sys.maxsize)
@@ -261,7 +285,7 @@ if __name__ == "__main__":
 
         if libpath not in jni_data:
             jni_data[libpath] = list()
-        jni_data[libpath].append((off, args))
+        jni_data[libpath].append((off & 0xfffffffe, args))
         loaded_jni_functions += 1
     log.close()
 
