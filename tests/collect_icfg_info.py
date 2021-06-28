@@ -1,4 +1,5 @@
 import networkx as nx
+import traceback
 import time
 import angr
 import sys
@@ -101,9 +102,14 @@ def gen_icfgs_angr(main_lib, other_libs, off_args):
 
         state = prepare_initial_state(proj, args)
 
-        cfg = proj.analyses.CFGEmulated(
-            fail_fast=True, keep_state=True, starts=[offset],
-            context_sensitivity_level=1, call_depth=5, initial_state=state)
+        try:
+            cfg = proj.analyses.CFGEmulated(
+                fail_fast=True, keep_state=True, starts=[offset],
+                context_sensitivity_level=1, call_depth=5, initial_state=state)
+        except Exception as e:
+            print("[ERR] error during the genration of CFGEmulated of angr [ %s ]" % str(e))
+            print(traceback.format_exc())
+            return nx.DiGraph()
 
         g = nx.DiGraph()
         for node in cfg.graph.nodes:
@@ -158,9 +164,14 @@ def gen_icfgs_angr_all_libs(main_lib, other_libs, off_args):
 
         state = prepare_initial_state(proj, args)
 
-        cfg = proj.analyses.CFGEmulated(
-            fail_fast=True, keep_state=True, starts=[offset],
-            context_sensitivity_level=1, call_depth=5, initial_state=state)
+        try:
+            cfg = proj.analyses.CFGEmulated(
+                fail_fast=True, keep_state=True, starts=[offset],
+                context_sensitivity_level=1, call_depth=5, initial_state=state)
+        except Exception as e:
+            print("[ERR] error during the genration of CFGEmulated of angr_all_libs [ %s ]" % str(e))
+            print(traceback.format_exc())
+            return nx.DiGraph()
 
         g = nx.DiGraph()
         for node in cfg.graph.nodes:
@@ -215,7 +226,13 @@ def gen_icfgs_angr_all_libs_no_timeout(main_lib, other_libs, off_args):
             offset += 1
 
         state = prepare_initial_state(proj, args)
-        cfg   = proj.analyses.CFGEmulated(starts=[offset], initial_state=state)
+
+        try:
+            cfg = proj.analyses.CFGEmulated(starts=[offset], initial_state=state)
+        except Exception as e:
+            print("[ERR] error during the genration of CFGEmulated of angr_all_libs_no_timeout [ %s ]" % str(e))
+            print(traceback.format_exc())
+            return nx.DiGraph()
 
         g = nx.DiGraph()
         for node in cfg.graph.nodes:

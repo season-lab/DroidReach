@@ -150,6 +150,11 @@ class APKAnalyzer(object):
             if f.startswith("lib/") or f.endswith(".so"):
                 if len(self.apk.get_file(f)) == 0:
                     # Not a file, maybe a bug of androguard?
+                    APKAnalyzer.log.warning("the file %s has size 0" % f)
+                    continue
+                if self.apk.get_file(f)[:4] != b"\x7fELF":
+                    # Not an ELF?
+                    APKAnalyzer.log.warning("the file %s is not an ELF" % f)
                     continue
                 lib_full_path = os.path.join(self.wdir, f)
                 if not os.path.exists(lib_full_path):

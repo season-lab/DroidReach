@@ -761,8 +761,11 @@ class CallObjectMethod(NativeDroidSimProcedure):
                 method_signature = annotation.method_signature
                 method_full_signature = get_method_full_signature(class_name, method_name, method_signature)
                 num_args = count_arg_nums(method_signature)
-                jnsaf_client = self._analysis_center.get_jnsaf_client()
-                ssm = self._analysis_center.get_source_sink_manager()
+                if self._analysis_center is not None:
+                    jnsaf_client = self._analysis_center.get_jnsaf_client()
+                    ssm = self._analysis_center.get_source_sink_manager()
+                else:
+                    continue
                 heap_summary = None
                 if jnsaf_client:
                     request = GetSummaryRequest(
