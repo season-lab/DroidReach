@@ -115,7 +115,10 @@ def gen_icfgs_angr(main_lib, other_libs, off_args):
         for node in cfg.graph.nodes:
             if node.block is None:
                 continue
-            capstone_insns = node.block.capstone.insns
+            try:
+                capstone_insns = node.block.capstone.insns
+            except KeyError:
+                capstone_insns = list()
             if len(capstone_insns) == 0:
                 continue
 
@@ -127,6 +130,8 @@ def gen_icfgs_angr(main_lib, other_libs, off_args):
                 continue
             g.add_edge(node_src.addr, node_dst.addr)
 
+        if offset not in g.nodes:
+            return nx.DiGraph()
         return nx.ego_graph(g, offset, radius=sys.maxsize)
 
     for off, args in off_args:
@@ -177,7 +182,10 @@ def gen_icfgs_angr_all_libs(main_lib, other_libs, off_args):
         for node in cfg.graph.nodes:
             if node.block is None:
                 continue
-            capstone_insns = node.block.capstone.insns
+            try:
+                capstone_insns = node.block.capstone.insns
+            except KeyError:
+                capstone_insns = list()
             if len(capstone_insns) == 0:
                 continue
 
@@ -189,6 +197,8 @@ def gen_icfgs_angr_all_libs(main_lib, other_libs, off_args):
                 continue
             g.add_edge(node_src.addr, node_dst.addr)
 
+        if offset not in g.nodes:
+            return nx.DiGraph()
         return nx.ego_graph(g, offset, radius=sys.maxsize)
 
     proj = CEXProject(main_lib, other_libs)
@@ -238,7 +248,10 @@ def gen_icfgs_angr_all_libs_no_timeout(main_lib, other_libs, off_args):
         for node in cfg.graph.nodes:
             if node.block is None:
                 continue
-            capstone_insns = node.block.capstone.insns
+            try:
+                capstone_insns = node.block.capstone.insns
+            except KeyError:
+                capstone_insns = list()
             if len(capstone_insns) == 0:
                 continue
 
@@ -250,6 +263,8 @@ def gen_icfgs_angr_all_libs_no_timeout(main_lib, other_libs, off_args):
                 continue
             g.add_edge(node_src.addr, node_dst.addr)
 
+        if offset not in g.nodes:
+            return nx.DiGraph()
         return nx.ego_graph(g, offset, radius=sys.maxsize)
 
     proj = CEXProject(main_lib, other_libs)
