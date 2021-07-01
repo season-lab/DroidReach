@@ -14,7 +14,7 @@ from cex_src.cex.cfg_extractors.angr_plugin.common import AngrCfgExtractor
 from collections import namedtuple
 from apk_analyzer.utils import md5_hash, find_jni_functions_angr
 from apk_analyzer.utils.prepare_state import prepare_initial_state
-from apk_analyzer.utils.timeout_decorator import TimeoutError
+from apk_analyzer.utils.timeout_decorator import TimeoutError, timeout
 from apk_analyzer.utils.path_engine import PathEngine, generate_paths
 
 # FIXME: get rid of "analyzer" in JniFunctionDescription and cache on disk
@@ -168,6 +168,7 @@ class NativeLibAnalyzer(object):
                 return True
         return False
 
+    @timeout(60 * 15)
     def _get_returned_vtable_angr(self, offset):
         class new(angr.SimProcedure):
             def run(self, sim_size):
@@ -209,7 +210,7 @@ class NativeLibAnalyzer(object):
         state = prepare_initial_state(proj, "")
 
         cfg = proj.analyses.CFGEmulated(fail_fast=True, keep_state=True, starts=[offset],
-            context_sensitivity_level=1, call_depth=5, initial_state=state)
+            context_sensitivity_level=1, initial_state=state) # call_depth=5
         ret_vals = get_ret_vals(proj, cfg, offset)
 
         vtables = list()
@@ -223,6 +224,7 @@ class NativeLibAnalyzer(object):
             NativeLibAnalyzer.log.warning("Detected more than one vtable on jni function @ %#x" % offset)
         return vtables[0]
 
+    @timeout(60 * 15)
     def _get_returned_vtable_path_executor(self, offset):
         if self.arch in {"armeabi", "armeabi-v7"}:
             offset -= offset % 2
@@ -260,9 +262,16 @@ class NativeLibAnalyzer(object):
     def get_returned_vtable(self, offset, use_angr=False):
         # Check if a JNI Method that returns a JLong is creating a C++ Object,
         # and if so return the corresponding vtable
-        if use_angr:
-            return self._get_returned_vtable_angr(offset)
-        return self._get_returned_vtable_path_executor(offset)
+
+        vt = None
+        try:
+            if use_angr:
+                vt = self._get_returned_vtable_angr(offset)
+            else:
+                vt = self._get_returned_vtable_path_executor(offset)
+        except TimeoutError:
+            pass
+        return vt
 
     def _get_jni_functions_ghidra(self):
         self._jni_functions = list()
