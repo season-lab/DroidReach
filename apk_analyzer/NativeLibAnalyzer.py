@@ -15,6 +15,7 @@ from collections import namedtuple
 from apk_analyzer.utils import md5_hash, find_jni_functions_angr
 from apk_analyzer.utils.prepare_state import prepare_initial_state
 from apk_analyzer.utils.timeout_decorator import TimeoutError
+from apk_analyzer.utils.path_engine import PathEngine, generate_paths
 
 # FIXME: get rid of "analyzer" in JniFunctionDescription and cache on disk
 JniFunctionDescription = namedtuple("JniFunctionDescription", ["analyzer", "class_name", "method_name", "args", "offset"])
@@ -167,10 +168,7 @@ class NativeLibAnalyzer(object):
                 return True
         return False
 
-    def get_returned_vtable(self, offset):
-        # Check if a JNI Method that returns a JLong is creating a C++ Object,
-        # and if so return the corresponding vtable
-
+    def _get_returned_vtable_angr(self, offset):
         class new(angr.SimProcedure):
             def run(self, sim_size):
                 return self.state.heap._malloc(sim_size)
@@ -224,6 +222,47 @@ class NativeLibAnalyzer(object):
         if len(vtables) > 1:
             NativeLibAnalyzer.log.warning("Detected more than one vtable on jni function @ %#x" % offset)
         return vtables[0]
+
+    def _get_returned_vtable_path_executor(self, offset):
+        if self.arch in {"armeabi", "armeabi-v7"}:
+            offset -= offset % 2
+
+        cex_proj  = CEXProject(self.libpath, plugins=["Ghidra"])
+
+        angr_proj = angr.Project(self.libpath, auto_load_libs=False)
+        engine    = PathEngine(angr_proj)
+
+        found_vals = set()
+        for p in generate_paths(cex_proj, engine, offset):
+            opts = {
+                angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY,
+                angr.options.ZERO_FILL_UNCONSTRAINED_REGISTERS,
+                angr.options.AVOID_MULTIVALUED_READS,
+                angr.options.AVOID_MULTIVALUED_WRITES
+            }
+            state = angr_proj.factory.blank_state(
+                add_options=opts
+            )
+
+            ret_state = engine.process_path(state, p)
+            if ret_state.regs.r0.args[0] != 0 and ret_state.mem[ret_state.regs.r0].uint32_t.resolved.args[0] > 0x400000:
+                vtable_maybe = ret_state.mem[ret_state.regs.r0].uint32_t.resolved
+                first_entry = ret_state.mem[vtable_maybe].uint32_t.resolved.args[0]
+                s = angr_proj.loader.find_section_containing(first_entry)
+                if s is not None and s.name == ".text":
+                    found_vals.add(ret_state.mem[ret_state.regs.r0].uint32_t.resolved)
+                    break
+
+        if len(found_vals) > 0:
+            return list(found_vals)[0].args[0]
+        return None
+
+    def get_returned_vtable(self, offset, use_angr=False):
+        # Check if a JNI Method that returns a JLong is creating a C++ Object,
+        # and if so return the corresponding vtable
+        if use_angr:
+            return self._get_returned_vtable_angr(offset)
+        return self._get_returned_vtable_path_executor(offset)
 
     def _get_jni_functions_ghidra(self):
         self._jni_functions = list()

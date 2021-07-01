@@ -351,12 +351,20 @@ class APKAnalyzer(object):
         self._native_methods_reachable = list(zip(class_names, native_names, args_strings))
         return self._native_methods_reachable
 
-    def find_native_methods_implementations(self, lib_whitelist=None):
+    def find_native_methods_implementations(self, lib_whitelist=None, reachable=False):
         # Among all the native methods detected in Java, return the subset
         # of them for which we can find the native implementation
+        # if reachable is True, then return the ones that are reachable from the defined sources
 
         res = list()
-        for class_name, method_name, args_str in self.find_native_methods():
+
+        methods = None
+        if reachable:
+            methods = self.find_reachable_native_methods()
+        else:
+            methods = self.find_native_methods()
+
+        for class_name, method_name, args_str in methods:
             native_impls = self.find_native_implementations(method_name, class_name, args_str, lib_whitelist)
             if len(native_impls) == 0:
                 continue
@@ -382,7 +390,7 @@ class APKAnalyzer(object):
 
         return check_if_jlong_as_cpp_obj(native_method.libpath, native_method.offset, demangled_args)
 
-    def vtable_from_jlong_ret(self, native_method: NativeMethod):
+    def vtable_from_jlong_ret(self, native_method: NativeMethod, use_angr=False):
         # Check whether the return value of the native method is a C++ obj ptr, and if so it returns
         # the pointer to the vtable corresponding to the obj (polymorfism is required). Otherwise returns None
 
@@ -392,4 +400,4 @@ class APKAnalyzer(object):
             return None
 
         a = self.get_native_analyzer(native_method.libhash)
-        return a.get_returned_vtable(native_method.offset)
+        return a.get_returned_vtable(native_method.offset, use_angr)
