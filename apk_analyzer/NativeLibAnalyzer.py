@@ -231,7 +231,7 @@ class NativeLibAnalyzer(object):
 
     @timeout(60 * 5)
     def _get_returned_vtable_path_executor(self, offset):
-        if self.arch in {"armeabi", "armeabi-v7"}:
+        if self.arch in {"armeabi", "armeabi-v7a"}:
             offset -= offset % 2
 
         cex_proj  = CEXProject(self.libpath, plugins=["Ghidra"])
