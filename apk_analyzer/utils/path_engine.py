@@ -6,7 +6,7 @@ from angr.engines.vex.claripy.datalayer import ClaripyDataMixin
 from cex_src.cex.cfg_extractors.angr_plugin.common import AngrCfgExtractor
 
 class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
-    def __init__(self, *args, **xargs):
+    def __init__(self, *args, monitor_target=None, **xargs):
         super().__init__(*args, **xargs)
 
         if self.project.arch.name == "ARMEL":
@@ -19,6 +19,8 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
             self.arg2_register = "rsi"
         else:
             raise Exception("Unsopported arch", self.project.arch.name)
+
+        self.monitor_target = monitor_target
 
     def _find_register_name(self, offset):
         for r in self.project.arch.register_list:
@@ -40,6 +42,16 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
 
         self.handle_vex_block(irsb)
 
+    def _perform_vex_stmt_Exit(self, guard, target, jumpkind):
+        # print("Exit:", guard, target, jumpkind)
+        if self.monitor_target is not None:
+            self.monitor_target(target)
+
+    def _perform_vex_defaultexit(self, expr, jumpkind):
+        # print("default exit:", expr)
+        if self.monitor_target is not None:
+            self.monitor_target(expr)
+
     def process_path(self, state, path):
         self.state = state.copy()
 
@@ -47,9 +59,11 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
             block = self.project.factory.block(bb, size=size if size > 0 else None)
             proc_size = 0
             while 1:
+                block.vex # It will shrink the block size according to VEX (dont remove it!)
                 block_size = block.size
                 # print("processing block:")
                 # block.pp()
+                # block.vex.pp()
                 self._process_block(block.vex)
                 proc_size += block_size
                 if proc_size >= size:

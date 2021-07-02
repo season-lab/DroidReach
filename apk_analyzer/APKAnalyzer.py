@@ -1,6 +1,9 @@
 import os
+import sys
+import angr
 import json
 import logging
+import claripy
 import subprocess
 import networkx as nx
 
@@ -9,8 +12,13 @@ from collections import namedtuple
 from androguard.misc import AnalyzeAPK
 from .JavaNameDemangler import JavaNameDemangler, FailedDemanglingError
 from .NativeLibAnalyzer import NativeLibAnalyzer
-from .utils import md5_hash, get_native_methods, check_if_jlong_as_cpp_obj
+from .utils import md5_hash, get_native_methods, check_if_jlong_as_cpp_obj, check_malformed_elf
 from .utils.app_component import AppComponent
+from .utils.path_engine import PathEngine, generate_paths
+from .utils.timeout_decorator import TimeoutError, timeout
+
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from cex_src.cex import CEXProject
 
 NativeMethod = namedtuple("NativeMethod", ["class_name", "method_name", "args_str", "libpath", "libhash", "offset"])
 
@@ -155,6 +163,9 @@ class APKAnalyzer(object):
                 if self.apk.get_file(f)[:4] != b"\x7fELF":
                     # Not an ELF?
                     APKAnalyzer.log.warning("the file %s is not an ELF" % f)
+                    continue
+                if check_malformed_elf(self.apk.get_file(f)):
+                    APKAnalyzer.log.warning("the file %s if malformed" % f)
                     continue
                 lib_full_path = os.path.join(self.wdir, f)
                 if not os.path.exists(lib_full_path):
@@ -377,7 +388,80 @@ class APKAnalyzer(object):
 
         return res
 
-    def jlong_as_cpp_obj(self, native_method: NativeMethod):
+    @timeout(60*1)
+    def _check_if_jlong_as_cpp_obj_pexe(self, libpath, offset, args):
+        def mk_cpp_obj(state, param_i):
+            n_entries_cpp = 30
+
+            cpp_obj = state.heap.allocate(state.project.arch.bits // 8)
+            vtable  = state.heap.allocate(state.project.arch.bits // 8 * n_entries_cpp)
+
+            state.memory.store(
+                cpp_obj, claripy.BVV(vtable, state.project.arch.bits),
+                endness=state.project.arch.memory_endness)
+
+            for i in range(0, n_entries_cpp * state.project.arch.bits // 8, state.project.arch.bits // 8):
+                state.memory.store(
+                    vtable + i,
+                    claripy.BVS("obj_%d_vtable_entry_%d" % (param_i, i), state.project.arch.bits),
+                    endness=state.project.arch.memory_endness)
+            return claripy.BVV(cpp_obj, state.project.arch.bits)
+
+        def prepare_state_cpp(state, args):
+            parsed_args = dict()
+            for i, a in enumerate(args.split(",")):
+                a = a.strip().replace(" ", "")
+                parsed_args[i+2] = a
+
+            for arg_id in parsed_args:
+                arg_type = parsed_args[arg_id]
+
+                if arg_type != "long":
+                    continue
+                data = mk_cpp_obj(state, arg_id-2)
+
+                if arg_id < 3:
+                    state.regs.__setattr__('r%d' % arg_id, data)
+                else:
+                    state.stack_push(data)
+            # We should never call the solver
+            state.solver._solver.timeout = 500
+            return state
+
+        tainted_calls = list()
+        def checkTaintedCall(target):
+            if target is None or isinstance(target, int):
+                return
+            for symb_name in target.variables:
+                if "vtable_entry_" in symb_name:
+                    tainted_calls.append(symb_name)
+                    break
+
+        cex_proj  = CEXProject(libpath, plugins=["Ghidra"])
+        angr_proj = angr.Project(libpath, auto_load_libs=False)
+        engine    = PathEngine(angr_proj, monitor_target=checkTaintedCall)
+
+        for p in generate_paths(cex_proj, engine, offset):
+            tainted_calls.clear()
+            opts = {
+                angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY,
+                angr.options.ZERO_FILL_UNCONSTRAINED_REGISTERS,
+                angr.options.AVOID_MULTIVALUED_READS,
+                angr.options.AVOID_MULTIVALUED_WRITES
+            }
+            state = angr_proj.factory.blank_state(
+                add_options=opts
+            )
+            prepare_state_cpp(state, args)
+            _ = engine.process_path(state, p)
+
+            if len(tainted_calls) > 0:
+                # print(tainted_calls)
+                break
+
+        return list(map(lambda s: int(s.split("_")[1]), tainted_calls))
+
+    def jlong_as_cpp_obj(self, native_method: NativeMethod, use_angr=False):
         # Check whether the native method has a jlong that is used as a C++ ptr (we detect vcalls)
 
         demangled_name = self.demangle(native_method.class_name, native_method.method_name, native_method.args_str)
@@ -388,7 +472,25 @@ class APKAnalyzer(object):
         if "long" not in demangled_args:
             return list()
 
-        return check_if_jlong_as_cpp_obj(native_method.libpath, native_method.offset, demangled_args)
+        try:
+            if use_angr:
+                return check_if_jlong_as_cpp_obj(native_method.libpath, native_method.offset, demangled_args)
+            return self._check_if_jlong_as_cpp_obj_pexe(native_method.libpath, native_method.offset, demangled_args)
+        except TimeoutError:
+            return list()
+        except Exception as e:
+            APKAnalyzer.log.warning("Unknown error in jlong_as_cpp_obj (use_angr=%s) [ %s ]" % (str(use_angr, str(e))))
+            return list()
+
+    def methods_jlong_ret_for_class(self, class_name, lib_whitelist=False, reachable=False):
+        res = list()
+        for method in self.find_native_methods_implementations(lib_whitelist, reachable):
+            if method.class_name == class_name:
+                demangled_name = self.demangle(method.class_name, method.method_name, method.args_str)
+                ret_type = demangled_name.split(": ")[1].split(" ")[0]
+                if ret_type == "long":
+                    res.append(method)
+        return res
 
     def vtable_from_jlong_ret(self, native_method: NativeMethod, use_angr=False):
         # Check whether the return value of the native method is a C++ obj ptr, and if so it returns

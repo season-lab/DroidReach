@@ -1,5 +1,9 @@
 import hashlib
 import re
+import io
+
+from elftools.elf.elffile import ELFFile
+from elftools.common.exceptions import ELFParseError
 
 from androguard.core.analysis.analysis import Analysis
 from networkx.classes.reportviews import NodeView
@@ -57,6 +61,14 @@ def md5_hash(f):
     with open(f,'rb') as f_binary:
         md5 = hashlib.md5(f_binary.read()).hexdigest()
     return md5
+
+def check_malformed_elf(data):
+    f = io.BytesIO(data)
+    try:
+        ELFFile(f)
+    except ELFParseError:
+        return True
+    return False
 
 @timeout(seconds=900)
 def check_if_jlong_as_cpp_obj(lib, offset, demangled_args):
