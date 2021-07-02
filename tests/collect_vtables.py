@@ -47,7 +47,7 @@ if __name__ == "__main__":
             start = time.time()
             ghidra.define_functions(method.libpath, offsets_per_lib[method.libpath])
             proj = CEXProject(method.libpath, plugins=["Ghidra"])
-            proj.get_callgraph(method.offset)
+            proj.get_callgraph(method.offset & 0xfffffffe)
             elapsed = time.time() - start
             print("[GHIDRA_CG] time %f" % elapsed)
 
