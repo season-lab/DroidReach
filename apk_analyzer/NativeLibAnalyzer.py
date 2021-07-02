@@ -1,3 +1,4 @@
+from apk_analyzer.APKAnalyzer import NativeMethod
 import os
 import sys
 import angr
@@ -202,6 +203,7 @@ class NativeLibAnalyzer(object):
         proj = angr.Project(self.libpath, auto_load_libs=False)
         proj.hook_symbol("_Znwm", new(), replace=True)
         proj.hook_symbol("_Znwj", new(), replace=True)
+        AngrCfgExtractor._hook_fp_models(proj)
 
         if offset % 2 == 0 and AngrCfgExtractor.is_thumb(proj, offset):
             offset += 1
@@ -209,9 +211,13 @@ class NativeLibAnalyzer(object):
         # Set JNI SimProcedures
         state = prepare_initial_state(proj, "")
 
-        cfg = proj.analyses.CFGEmulated(fail_fast=True, keep_state=True, starts=[offset],
-            context_sensitivity_level=1, initial_state=state) # call_depth=5
-        ret_vals = get_ret_vals(proj, cfg, offset)
+        try:
+            cfg = proj.analyses.CFGEmulated(keep_state=True, starts=[offset],
+                context_sensitivity_level=1, initial_state=state) # call_depth=5, fail_fast=True
+            ret_vals = get_ret_vals(proj, cfg, offset)
+        except Exception as e:
+            NativeLibAnalyzer.log.warning("CFGEmulated failed in _get_returned_vtable_angr [ERR %s]" % str(e))
+            return None
 
         vtables = list()
         for state, v in ret_vals:
@@ -224,7 +230,7 @@ class NativeLibAnalyzer(object):
             NativeLibAnalyzer.log.warning("Detected more than one vtable on jni function @ %#x" % offset)
         return vtables[0]
 
-    @timeout(60 * 15)
+    @timeout(60 * 5)
     def _get_returned_vtable_path_executor(self, offset):
         if self.arch in {"armeabi", "armeabi-v7"}:
             offset -= offset % 2
@@ -271,6 +277,9 @@ class NativeLibAnalyzer(object):
                 vt = self._get_returned_vtable_path_executor(offset)
         except TimeoutError:
             pass
+        except Exception as e:
+            NativeLibAnalyzer.log.warning("get_returned_vtable failed (use_angr=%s), ERR: %s" % \
+                (str(use_angr), str(e)))
         return vt
 
     def _get_jni_functions_ghidra(self):
