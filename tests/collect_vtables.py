@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
         demangled_name = apka.demangle(consumer.class_name, consumer.method_name, consumer.args_str)
         demangled_args = demangled_name[demangled_name.find("(")+1:demangled_name.find(")")]
-        demangled_args = demangled_args.replace(" ", "")
+        demangled_args = demangled_args.replace(" ", "").split(",")
         if "long" not in demangled_args:
             print("[INFO] does not have long as parameter")
             continue
@@ -56,12 +56,12 @@ if __name__ == "__main__":
         start     = time.time()
         args_angr = apka.jlong_as_cpp_obj(consumer, use_angr=True)
         elapsed   = time.time() - start
-        print("[ANGR_JLONG_AS_PTR] %s; time %f" % (str(args_angr), elapsed))
+        print("[ANGR_JLONG_AS_PTR] libpath %s; offset %#x; args %s; time %f" % (consumer.libpath, consumer.offset, str(args_angr), elapsed))
 
         start     = time.time()
         args_pexe = apka.jlong_as_cpp_obj(consumer, use_angr=False)
         elapsed   = time.time() - start
-        print("[PEXE_JLONG_AS_PTR] %s; time %f" % (str(args_pexe), elapsed))
+        print("[PEXE_JLONG_AS_PTR] libpath %s; offset %#x; args %s; time %f" % (consumer.libpath, consumer.offset, str(args_pexe), elapsed))
 
         if len(args_angr) > 0 or len(args_pexe) > 0:
             print("[JLONG_AS_PTR]", consumer)
@@ -86,12 +86,12 @@ if __name__ == "__main__":
                 start = time.time()
                 vtable_angr = apka.vtable_from_jlong_ret(producer, use_angr=True)
                 elapsed = time.time() - start
-                print("[ANGR_VTABLE] %#x; time %f" % (vtable_angr if vtable_angr is not None else -1, elapsed))
+                print("[ANGR_VTABLE] libpath %s; offset %#x; vtable %#x; time %f" % (producer.libpath, producer.offset, vtable_angr if vtable_angr is not None else -1, elapsed))
 
                 start = time.time()
                 vtable_pexe = apka.vtable_from_jlong_ret(producer, use_angr=False)
                 elapsed = time.time() - start
-                print("[PEXE_VTABLE] %#x; time %f" % (vtable_pexe if vtable_pexe is not None else -1, elapsed))
+                print("[PEXE_VTABLE] libpath %s; offset %#x; vtable %#x; time %f" % (producer.libpath, producer.offset, vtable_pexe if vtable_pexe is not None else -1, elapsed))
 
                 processed_producers[producer] = set()
 
@@ -102,4 +102,4 @@ if __name__ == "__main__":
                     found_vtables.add(vtable_pexe)
                     processed_producers[producer].add(vtable_pexe)
 
-            print("[VTABLES_FOR_CONSUMER]", len(found_vtables), ";", ",".join(map(hex, found_vtables)))
+            print("[VTABLES_FOR_CONSUMER] libpath %s; offset %#x; %s" % (consumer.libpath, consumer.offset, ",".join(map(hex, found_vtables))))

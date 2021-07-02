@@ -428,13 +428,13 @@ class APKAnalyzer(object):
             state.solver._solver.timeout = 500
             return state
 
-        tainted_calls = list()
+        tainted_calls = set()
         def checkTaintedCall(target):
             if target is None or isinstance(target, int):
                 return
             for symb_name in target.variables:
                 if "vtable_entry_" in symb_name:
-                    tainted_calls.append(symb_name)
+                    tainted_calls.add(symb_name)
                     break
 
         cex_proj  = CEXProject(libpath, plugins=["Ghidra"])
@@ -459,7 +459,7 @@ class APKAnalyzer(object):
                 # print(tainted_calls)
                 break
 
-        return list(map(lambda s: int(s.split("_")[1]), tainted_calls))
+        return list(set(map(lambda s: int(s.split("_")[1]), tainted_calls)))
 
     def jlong_as_cpp_obj(self, native_method: NativeMethod, use_angr=False):
         # Check whether the native method has a jlong that is used as a C++ ptr (we detect vcalls)
@@ -479,7 +479,7 @@ class APKAnalyzer(object):
         except TimeoutError:
             return list()
         except Exception as e:
-            APKAnalyzer.log.warning("Unknown error in jlong_as_cpp_obj (use_angr=%s) [ %s ]" % (str(use_angr, str(e))))
+            APKAnalyzer.log.warning("Unknown error in jlong_as_cpp_obj (use_angr=%s) [ %s ]" % (str(use_angr), str(e)))
             return list()
 
     def methods_jlong_ret_for_class(self, class_name, lib_whitelist=False, reachable=False):
