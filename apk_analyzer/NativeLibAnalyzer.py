@@ -1,4 +1,3 @@
-from apk_analyzer.APKAnalyzer import NativeMethod
 import os
 import sys
 import angr
