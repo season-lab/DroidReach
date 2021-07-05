@@ -3,6 +3,7 @@ import sys
 import angr
 import shutil
 import rzpipe
+import claripy
 import logging
 import subprocess
 
@@ -168,8 +169,8 @@ class NativeLibAnalyzer(object):
                 return True
         return False
 
-    @timeout(60 * 15)
-    def _get_returned_vtable_angr(self, offset):
+    @timeout(60*15)
+    def _get_returned_vtable_angr_cfg_emulated(self, offset):
         class new(angr.SimProcedure):
             def run(self, sim_size):
                 return self.state.heap._malloc(sim_size)
@@ -229,7 +230,73 @@ class NativeLibAnalyzer(object):
             NativeLibAnalyzer.log.warning("Detected more than one vtable on jni function @ %#x" % offset)
         return vtables[0]
 
-    @timeout(60 * 5)
+    @timeout(60*15)
+    def _get_returned_vtable_angr(self, offset):
+        MAXITER   = 1000
+        MAXSTATES = 1000
+
+        class new(angr.SimProcedure):
+            def run(self, sim_size):
+                return self.state.heap._malloc(sim_size)
+
+        proj = angr.Project(self.libpath, auto_load_libs=False)
+        proj.hook_symbol("_Znwm", new(), replace=True)
+        proj.hook_symbol("_Znwj", new(), replace=True)
+        AngrCfgExtractor._hook_fp_models(proj)
+
+        if offset % 2 == 0 and AngrCfgExtractor.is_thumb(proj, offset):
+            offset += 1
+
+        # Set JNI SimProcedures
+        state = prepare_initial_state(proj, "")
+        state.ip = offset
+        state.regs.lr = claripy.BVV(0xdeadbeee, 32)
+
+        vtables = list()
+
+        i    = 0
+        smgr = proj.factory.simgr(state, veritesting=False, save_unsat=False)
+        while len(smgr.active) > 0:
+            if len(vtables) > 0 or i > MAXITER:
+                break
+
+            smgr.explore(n=1)
+            if len(smgr.active) > MAXSTATES:
+                # Try to limit RAM usage
+                break
+
+            for stash in smgr.stashes:
+                q = smgr.stashes[stash]
+                for s in q:
+                    if s.addr == 0xdeadbeee:
+                        vtable = s.mem[s.regs.r0].uint32_t.resolved
+                        if not vtable.symbolic and vtable.args[0] > 0x400000:
+                            first_entry = s.mem[vtable].uint32_t.resolved
+                            if not first_entry.symbolic:
+                                section = proj.loader.find_section_containing(first_entry.args[0])
+                                if section is not None and s.name == ".text":
+                                    vtables.append(vtable.args[0])
+                                    break
+            i += 1
+
+        if len(smgr.errored) > 0:
+            sys.stderr.write("WARNING: %s @ %#x\n" % (self.libpath, offset))
+            sys.stderr.write("WARNING: %d errored: %s\n"  % (len(smgr.errored), smgr.errored[0]))
+        if i < 5:
+            sys.stderr.write("WARNING: %s @ %#x\n" % (self.libpath, offset))
+            sys.stderr.write("WARNING: very few iterations (%d)\n" % i)
+        if len(smgr.active) > MAXSTATES:
+            sys.stderr.write("WARNING: %s @ %#x\n" % (self.libpath, offset))
+            sys.stderr.write("WARNING: killed for generating too many states\n")
+        if i > MAXITER:
+            sys.stderr.write("WARNING: %s @ %#x\n" % (self.libpath, offset))
+            sys.stderr.write("WARNING: killed for exceeding max iter\n")
+
+        if len(vtables) > 0:
+            return vtables[0]
+        return None
+
+    @timeout(60*1)
     def _get_returned_vtable_path_executor(self, offset):
         if self.arch in {"armeabi", "armeabi-v7a"}:
             offset -= offset % 2

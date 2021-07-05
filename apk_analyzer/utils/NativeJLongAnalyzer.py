@@ -21,8 +21,8 @@ nativedroid_logger.propagate = False
 
 class NativeJLongAnalyzer(object):
     DEBUG     = False
-    MAXITER   = 100
-    MAXSTATES = 200
+    MAXITER   = 1000
+    MAXSTATES = 1000
 
     def __init__(self, libpath):
         self.libpath = libpath
@@ -104,9 +104,25 @@ class NativeJLongAnalyzer(object):
         if addr % 2 != 0:
             return False
 
-        self.state.ip = addr
-        if self.state.block().size == 0:
+        # Heuristic 1: check if the lifted block is empty
+        try:
+            b = self.project.factory.block(addr)
+        except:
             return True
+        if b.size == 0:
+            return True
+
+        # Heuristic 2: check number of instructions with capstone
+        if len(b.capstone.insns) == 0:
+            return True
+
+        # Heuristic 3: check symbols
+        for s in self.project.loader.symbols:
+            if s.rebased_addr == addr + 1:
+                return True
+            elif s.rebased_addr == addr:
+                return False
+
         return False
 
     @timeout(60*5)  # Risky, let's try
