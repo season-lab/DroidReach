@@ -34,7 +34,7 @@ def thread_runner(apk, mode):
         (7200, DATASET_DIR, apk, mode)
     cmd = DOCKER_CMD + [cmd]
 
-    logname = "./" + LOG_DIRNAME + "/" + apk + "_" + mode + ".log"
+    logname = LOGS_DIR + "/" + LOG_DIRNAME + "/" + apk + "_" + mode + ".log"
     log     = open(logname, "w")
 
     start = time.time()
