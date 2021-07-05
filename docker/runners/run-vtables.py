@@ -29,11 +29,12 @@ def iterate_files(path, recursive=False):
         if not recursive:
             break
 
-def thread_runner(apk):
-    cmd = HOST_CMD + apk
+def thread_runner(apk, mode):
+    cmd = "timeout %d python3 -u ./android-paths/tests/collect_icfg_info.py %s/%s %s" % \
+        (7200, DATASET_DIR, apk, mode)
     cmd = DOCKER_CMD + [cmd]
 
-    logname = LOGS_DIR + "/" + LOG_DIRNAME + "/" + apk + ".log"
+    logname = "./" + LOG_DIRNAME + "/" + apk + "_" + mode + ".log"
     log     = open(logname, "w")
 
     start = time.time()
@@ -47,7 +48,8 @@ def thread_runner(apk):
 if __name__ == "__main__":
     to_run = set()
     for f in iterate_files(DATASET_DIR):
-        to_run.add(os.path.basename(f))
+        for i in range(2):
+            to_run.add(os.path.basename(f) + "_" + str(i))
 
     already_run = set()
     for f in iterate_files(LOGS_DIR + "/" + LOG_DIRNAME):
@@ -58,8 +60,9 @@ if __name__ == "__main__":
     threads = list()
     queue   = list(sorted(to_run, reverse=True))
     while queue:
+        apk, mode = queue.pop().split("_")
         if len(threads) < N_CONC:
-            t = Thread(target=thread_runner, args=(queue.pop(), ))
+            t = Thread(target=thread_runner, args=(apk, mode))
             t.start()
             threads.append(t)
             continue
