@@ -30,18 +30,18 @@ def iterate_files(path, recursive=False):
             break
 
 def thread_runner(apk, mode):
-    cmd = "timeout %d python3 -u ./android-paths/tests/collect_icfg_info.py %s/%s %s" % \
-        (7200, DATASET_DIR, apk, mode)
+    cmd = "timeout %d python3 -u ./android-paths/tests/collect_vtables.py /home/ubuntu/dataset/%s %s" % \
+        (7200, apk, mode)
     cmd = DOCKER_CMD + [cmd]
 
     logname = LOGS_DIR + "/" + LOG_DIRNAME + "/" + apk + "_" + mode + ".log"
     log     = open(logname, "w")
 
     start = time.time()
-    print("Running APK", apk)
+    print("Running APK", apk, mode)
     proc = subprocess.Popen(cmd, stdout=log, stderr=log)
     _    = proc.communicate()
-    print("APK", apk, "done", time.time() - start)
+    print("APK", apk, mode, "done", time.time() - start)
 
     log.close()
 
