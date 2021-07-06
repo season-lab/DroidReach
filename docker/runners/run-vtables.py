@@ -46,8 +46,19 @@ def thread_runner(apk, mode):
     log.close()
 
 if __name__ == "__main__":
+    interesting_hashes = set()
+    f = open(os.path.join(SCRIPTDIR, "cpp_libs.txt"), "r")
+    for line in f:
+        line = line.strip()
+        if line == "":
+            continue
+        interesting_hashes.add(line)
+
     to_run = set()
     for f in iterate_files(DATASET_DIR):
+        if os.path.basename(f).replace(".apk", "") not in interesting_hashes:
+            continue
+
         for i in range(2):
             to_run.add(os.path.basename(f) + "_" + str(i))
 
