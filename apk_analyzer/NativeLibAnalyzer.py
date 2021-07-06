@@ -268,7 +268,12 @@ class NativeLibAnalyzer(object):
             for stash in smgr.stashes:
                 q = smgr.stashes[stash]
                 for s in q:
-                    if s.addr == 0xdeadbeee:
+                    addr = None
+                    try:
+                        addr = s.addr
+                    except:
+                        pass
+                    if addr is not None and addr == 0xdeadbeee:
                         vtable = s.mem[s.regs.r0].uint32_t.resolved
                         if not vtable.symbolic and vtable.args[0] > 0x400000:
                             first_entry = s.mem[vtable].uint32_t.resolved

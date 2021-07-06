@@ -32,8 +32,8 @@ def _find_producer(apka, consumer, libs=None):
     maybe_producers = apka.methods_jlong_ret_for_class(class_name, lib_whitelist=libs)
     print("[+] Found %d possible producers" % len(maybe_producers))
     for maybe_producer in maybe_producers:
-        print(maybe_producer)
-        vtable = apka.vtable_from_jlong_ret(maybe_producer)
+        # print(maybe_producer)
+        vtable = apka.vtable_from_jlong_ret(maybe_producer, use_angr=False)
         if vtable is not None:
             print("[!] Producer: %s %s %s @ %s %#x - vtable %#x" % \
                 (maybe_producer.class_name, maybe_producer.method_name, maybe_producer.args_str, maybe_producer.libpath, maybe_producer.offset, vtable))
