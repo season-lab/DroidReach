@@ -17,7 +17,7 @@ def cache_ghidra_analysis(libpath, off):
         processed_libs.add(libpath)
         start = time.time()
         ghidra.define_functions(libpath, offsets_per_lib[libpath])
-        proj = CEXProject(libpath, plugins=["Ghidra"])
+        proj = CEXProject(libpath, plugins=["Ghidra", "AngrEmulated"])
         proj.get_callgraph(off & 0xfffffffe)
         elapsed = time.time() - start
         print("[GHIDRA_CG] time %f" % elapsed)

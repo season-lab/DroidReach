@@ -21,8 +21,8 @@ nativedroid_logger.propagate = False
 
 class NativeJLongAnalyzer(object):
     DEBUG     = False
-    MAXITER   = 1000
-    MAXSTATES = 1000
+    MAXITER   = sys.maxsize
+    MAXSTATES = sys.maxsize
 
     def __init__(self, libpath):
         self.libpath = libpath

@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+
+import argparse
+import sys
+import os
+
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from apk_analyzer import APKAnalyzer
+
+def _print_native_functions(apka, libs=None, reachable=False):
+    methods = None
+    if reachable:
+        methods = apka.find_reachable_native_methods()
+    else:
+        methods = apka.find_native_methods()
+
+    for class_name, method_name, args_str in methods:
+        print(" %s %s %s" % (class_name, method_name, args_str))
+        native_impls = apka.find_native_implementations(method_name, class_name, args_str, libs)
+        if len(native_impls) == 0:
+            print("   * no implementation found")
+            continue
+
+        for native_impl in native_impls:
+            print("   * %s\t%#x" % (native_impl.analyzer.libpath, native_impl.offset))
+
+def _find_producer(apka, consumer, libs=None):
+    class_name  = "L" + "/".join(consumer.split(".")[:-1]) + ";"
+    method_name = consumer.split(".")[-1]
+
+    print("[+] Finding producer for method", consumer)
+    maybe_producers = apka.methods_jlong_ret_for_class(class_name, lib_whitelist=libs)
+    print("[+] Found %d possible producers" % len(maybe_producers))
+    for maybe_producer in maybe_producers:
+        print(maybe_producer)
+        vtable = apka.vtable_from_jlong_ret(maybe_producer)
+        if vtable is not None:
+            print("[!] Producer: %s %s %s @ %s %#x - vtable %#x" % \
+                (maybe_producer.class_name, maybe_producer.method_name, maybe_producer.args_str, maybe_producer.libpath, maybe_producer.offset, vtable))
+            break
+
+def main(args):
+    apk_path = args.apk
+
+    apka = APKAnalyzer(apk_path)
+    reachable_analysis = False
+    libs               = None
+    if args.reachable:
+        reachable_analysis = True
+    if not args.all_archs:
+        libs = apka.get_armv7_libs()
+        libs = list(map(lambda l: l.libhash, libs))
+
+    if args.print_native_functions:
+        _print_native_functions(apka, libs, reachable_analysis)
+
+    if args.find_producer is not None:
+        _find_producer(apka, args.find_producer, libs)
+
+if __name__=="__main__":
+    parser = argparse.ArgumentParser(description='Liana APK analyzer')
+    parser.add_argument("--print-native-functions", help="Print native functions", action="store_true")
+    parser.add_argument("--find-producer", help="Look for a producer for a method", nargs="?")
+    parser.add_argument("--reachable", help="Analyze only reachable functions", action="store_true")
+    parser.add_argument("--all-archs", help="Analyze all archs (not only armv7) [Experimental]", action="store_true")
+
+    parser.add_argument("apk", help="The binary to analyze")
+
+    args = parser.parse_args()
+
+    exit(main(args))

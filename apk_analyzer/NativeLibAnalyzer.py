@@ -232,8 +232,8 @@ class NativeLibAnalyzer(object):
 
     @timeout(60*15)
     def _get_returned_vtable_angr(self, offset):
-        MAXITER   = 1000
-        MAXSTATES = 1000
+        MAXITER   = sys.maxsize
+        MAXSTATES = sys.maxsize
 
         class new(angr.SimProcedure):
             def run(self, sim_size):
@@ -296,36 +296,46 @@ class NativeLibAnalyzer(object):
             return vtables[0]
         return None
 
-    @timeout(60*1)
     def _get_returned_vtable_path_executor(self, offset):
         if self.arch in {"armeabi", "armeabi-v7a"}:
             offset -= offset % 2
 
-        cex_proj  = CEXProject(self.libpath, plugins=["Ghidra"])
+        cex_proj = CEXProject(self.libpath, plugins=["Ghidra", "AngrEmulated"])
+
+        # angr, shut the fuck up
+        angr_logger = logging.getLogger('angr')
+        angr_logger.propagate = False
+        cle_logger = logging.getLogger('cle')
+        cle_logger.propagate = False
+        pyvex_logger = logging.getLogger('pyvex')
+        pyvex_logger.propagate = False
 
         angr_proj = angr.Project(self.libpath, auto_load_libs=False)
         engine    = PathEngine(angr_proj)
 
         found_vals = set()
-        for p in generate_paths(cex_proj, engine, offset):
-            opts = {
-                angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY,
-                angr.options.ZERO_FILL_UNCONSTRAINED_REGISTERS,
-                angr.options.AVOID_MULTIVALUED_READS,
-                angr.options.AVOID_MULTIVALUED_WRITES
-            }
-            state = angr_proj.factory.blank_state(
-                add_options=opts
-            )
+        @timeout(60*15)
+        def wrapper():
+            for p in generate_paths(cex_proj, engine, offset):
+                opts = {
+                    angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY,
+                    angr.options.ZERO_FILL_UNCONSTRAINED_REGISTERS,
+                    angr.options.AVOID_MULTIVALUED_READS,
+                    angr.options.AVOID_MULTIVALUED_WRITES
+                }
+                state = angr_proj.factory.blank_state(
+                    add_options=opts
+                )
 
-            ret_state = engine.process_path(state, p)
-            if ret_state.regs.r0.args[0] != 0 and ret_state.mem[ret_state.regs.r0].uint32_t.resolved.args[0] > 0x400000:
-                vtable_maybe = ret_state.mem[ret_state.regs.r0].uint32_t.resolved
-                first_entry = ret_state.mem[vtable_maybe].uint32_t.resolved.args[0]
-                s = angr_proj.loader.find_section_containing(first_entry)
-                if s is not None and s.name == ".text":
-                    found_vals.add(ret_state.mem[ret_state.regs.r0].uint32_t.resolved)
-                    break
+                ret_state = engine.process_path(state, p)
+                if ret_state.regs.r0.args[0] != 0 and ret_state.mem[ret_state.regs.r0].uint32_t.resolved.args[0] > 0x400000:
+                    vtable_maybe = ret_state.mem[ret_state.regs.r0].uint32_t.resolved
+                    first_entry = ret_state.mem[vtable_maybe].uint32_t.resolved.args[0]
+                    s = angr_proj.loader.find_section_containing(first_entry)
+                    if s is not None and s.name == ".text":
+                        found_vals.add(ret_state.mem[ret_state.regs.r0].uint32_t.resolved)
+                        break
+        wrapper()
 
         if len(found_vals) > 0:
             return list(found_vals)[0].args[0]
