@@ -71,8 +71,8 @@ if __name__ == "__main__":
     threads = list()
     queue   = list(sorted(to_run, reverse=True))
     while queue:
-        apk, mode = queue.pop().split("_")
         if len(threads) < N_CONC:
+            apk, mode = queue.pop().split("_")
             t = Thread(target=thread_runner, args=(apk, mode))
             t.start()
             threads.append(t)
