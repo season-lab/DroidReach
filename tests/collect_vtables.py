@@ -67,8 +67,10 @@ if __name__ == "__main__":
         print("[CONSUMER] libpath %s; offset %#x; name %s; args %s; time %f" % (consumer.libpath, consumer.offset, consumer.method_name, str(args), elapsed))
 
         if len(args) > 0:
-            found_vtables = set()
-            for producer in apka.methods_jlong_ret_for_class(consumer.class_name, lib_whitelist=arm_hashes):
+            found_vtables   = set()
+            maybe_producers = apka.methods_jlong_ret_for_class(consumer.class_name, lib_whitelist=arm_hashes)
+            print("[INFO] found %d potential producers" % len(maybe_producers))
+            for producer in maybe_producers:
                 if producer in processed_producers:
                     found_vtables |= processed_producers[producer]
                     continue
