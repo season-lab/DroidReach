@@ -1,6 +1,7 @@
 import os
 import sys
 import angr
+import time
 import json
 import logging
 import claripy
@@ -443,29 +444,27 @@ class APKAnalyzer(object):
 
         _ = cex_proj.get_callgraph(offset)
 
-        @timeout(60*5)
-        def wrapper():
-            max_paths = 1000
-            for i, p in enumerate(generate_paths(cex_proj, engine, offset)):
-                if i >= max_paths:
-                    break
-                tainted_calls.clear()
-                opts = {
-                    angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY,
-                    angr.options.ZERO_FILL_UNCONSTRAINED_REGISTERS,
-                    angr.options.AVOID_MULTIVALUED_READS,
-                    angr.options.AVOID_MULTIVALUED_WRITES
-                }
-                state = angr_proj.factory.blank_state(
-                    add_options=opts
-                )
-                prepare_state_cpp(state, args)
-                _ = engine.process_path(state, p)
+        max_time = 60 * 5
+        start    = time.time()
+        for p in generate_paths(cex_proj, engine, offset):
+            tainted_calls.clear()
+            opts = {
+                angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY,
+                angr.options.ZERO_FILL_UNCONSTRAINED_REGISTERS,
+                angr.options.AVOID_MULTIVALUED_READS,
+                angr.options.AVOID_MULTIVALUED_WRITES
+            }
+            state = angr_proj.factory.blank_state(
+                add_options=opts
+            )
+            prepare_state_cpp(state, args)
+            _ = engine.process_path(state, p)
 
-                if len(tainted_calls) > 0:
-                    # print(tainted_calls)
-                    break
-        wrapper()
+            if len(tainted_calls) > 0:
+                # print(tainted_calls)
+                break
+            if time.time() - start > max_time:
+                break
 
         return list(set(map(lambda s: int(s.split("_")[1]), tainted_calls)))
 

@@ -1,6 +1,7 @@
 import os
 import sys
 import angr
+import time
 import shutil
 import rzpipe
 import claripy
@@ -323,31 +324,30 @@ class NativeLibAnalyzer(object):
         CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = False
 
         found_vals = set()
-        @timeout(60*5)
-        def wrapper():
-            max_paths = 1000
-            for i, p in enumerate(generate_paths(cex_proj, engine, offset)):
-                if i >= max_paths:
-                    break
-                opts = {
-                    angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY,
-                    angr.options.ZERO_FILL_UNCONSTRAINED_REGISTERS,
-                    angr.options.AVOID_MULTIVALUED_READS,
-                    angr.options.AVOID_MULTIVALUED_WRITES
-                }
-                state = angr_proj.factory.blank_state(
-                    add_options=opts
-                )
 
-                ret_state = engine.process_path(state, p)
-                if ret_state.regs.r0.args[0] != 0 and ret_state.mem[ret_state.regs.r0].uint32_t.resolved.args[0] > 0x400000:
-                    vtable_maybe = ret_state.mem[ret_state.regs.r0].uint32_t.resolved
-                    first_entry = ret_state.mem[vtable_maybe].uint32_t.resolved.args[0]
-                    s = angr_proj.loader.find_section_containing(first_entry)
-                    if s is not None and s.name == ".text":
-                        found_vals.add(ret_state.mem[ret_state.regs.r0].uint32_t.resolved)
-                        break
-        wrapper()
+        max_time = 60 * 5
+        start    = time.time()
+        for p in generate_paths(cex_proj, engine, offset):
+            opts = {
+                angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY,
+                angr.options.ZERO_FILL_UNCONSTRAINED_REGISTERS,
+                angr.options.AVOID_MULTIVALUED_READS,
+                angr.options.AVOID_MULTIVALUED_WRITES
+            }
+            state = angr_proj.factory.blank_state(
+                add_options=opts
+            )
+
+            ret_state = engine.process_path(state, p)
+            if ret_state.regs.r0.args[0] != 0 and ret_state.mem[ret_state.regs.r0].uint32_t.resolved.args[0] > 0x400000:
+                vtable_maybe = ret_state.mem[ret_state.regs.r0].uint32_t.resolved
+                first_entry = ret_state.mem[vtable_maybe].uint32_t.resolved.args[0]
+                s = angr_proj.loader.find_section_containing(first_entry)
+                if s is not None and s.name == ".text":
+                    found_vals.add(ret_state.mem[ret_state.regs.r0].uint32_t.resolved)
+                    break
+            if time.time() - start > max_time:
+                break
 
         if len(found_vals) > 0:
             CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
