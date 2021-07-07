@@ -1,6 +1,7 @@
 from cex_src.cex.project import CEXProject
 import networkx as nx
 import claripy
+import sys
 
 from angr.engines.vex.heavy.heavy import SimStateStorageMixin, VEXMixin, VEXLifter
 from angr.engines.vex.claripy.datalayer import ClaripyDataMixin
@@ -43,7 +44,11 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
         self.state.scratch.set_tyenv(irsb.tyenv)
         self.state.scratch.irsb = irsb
 
-        self.handle_vex_block(irsb)
+        try:
+            self.handle_vex_block(irsb)
+        except Exception as e:
+            sys.stderr.write("WARNING: handle_vex_block on %#x" % irsb.addr)
+            pass
 
     def _perform_vex_stmt_Exit(self, guard, target, jumpkind):
         # print("Exit:", guard, target, jumpkind)
