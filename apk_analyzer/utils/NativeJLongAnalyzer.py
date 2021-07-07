@@ -125,7 +125,6 @@ class NativeJLongAnalyzer(object):
 
         return False
 
-    @timeout(60*5)  # Risky, let's try
     def _inner_check_cpp_obj(self, addr, args):
         is_thumb = self._is_thumb(addr)
         if is_thumb:
@@ -191,9 +190,6 @@ class NativeJLongAnalyzer(object):
     def check_cpp_obj(self, addr, args):
         try:
             res = self._inner_check_cpp_obj(addr, args)
-        except TimeoutError:
-            sys.stderr.write("WARNING: %#x timeout\n" % addr)
-            return list()
         except cle.CLEError as e:
             # Most probably "Too many loaded modules for TLS to handle"
             sys.stderr.write("WARNING: CLEError %s\n" % str(e))
