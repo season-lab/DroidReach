@@ -54,6 +54,7 @@ if __name__ == "__main__":
         demangled_args = demangled_args.replace(" ", "").split(",")
         if "long" not in demangled_args:
             # Cannot be a consumer since it has not jlong as parameter
+            print("[INFO] %s does not have long as argument" % consumer.method_name)
             continue
 
         # cache CFG
@@ -84,6 +85,8 @@ if __name__ == "__main__":
                 if vtable is not None:
                     found_vtables.add(vtable)
                     processed_producers[producer].add(vtable)
+                    break
 
-            print("[MAPPING_PRODUCER_CONSUMER] libpath_consumer %s; offset_consumer %#x; name_consumer %s; libpath_producer %s; offset_producer %#x; name_producer %s; n_vtables %d; vtables %s" % \
-                (consumer.libpath, consumer.offset, consumer.method_name, producer.libpath, producer.offset, producer.method_name, len(found_vtables), ",".join(map(hex, found_vtables))))
+            if len(found_vtables) > 0:
+                print("[MAPPING_PRODUCER_CONSUMER] libpath_consumer %s; offset_consumer %#x; name_consumer %s; libpath_producer %s; offset_producer %#x; name_producer %s; n_vtables %d; vtables %s" % \
+                    (consumer.libpath, consumer.offset, consumer.method_name, producer.libpath, producer.offset, producer.method_name, len(found_vtables), ",".join(map(hex, found_vtables))))
