@@ -389,7 +389,6 @@ class APKAnalyzer(object):
 
         return res
 
-    @timeout(60*5)
     def _check_if_jlong_as_cpp_obj_pexe(self, libpath, offset, args):
         def mk_cpp_obj(state, param_i):
             n_entries_cpp = 30
@@ -442,23 +441,28 @@ class APKAnalyzer(object):
         angr_proj = angr.Project(libpath, auto_load_libs=False)
         engine    = PathEngine(angr_proj, monitor_target=checkTaintedCall)
 
-        for p in generate_paths(cex_proj, engine, offset):
-            tainted_calls.clear()
-            opts = {
-                angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY,
-                angr.options.ZERO_FILL_UNCONSTRAINED_REGISTERS,
-                angr.options.AVOID_MULTIVALUED_READS,
-                angr.options.AVOID_MULTIVALUED_WRITES
-            }
-            state = angr_proj.factory.blank_state(
-                add_options=opts
-            )
-            prepare_state_cpp(state, args)
-            _ = engine.process_path(state, p)
+        _ = cex_proj.get_callgraph(offset)
 
-            if len(tainted_calls) > 0:
-                # print(tainted_calls)
-                break
+        @timeout(60*5)
+        def wrapper():
+            for p in generate_paths(cex_proj, engine, offset):
+                tainted_calls.clear()
+                opts = {
+                    angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY,
+                    angr.options.ZERO_FILL_UNCONSTRAINED_REGISTERS,
+                    angr.options.AVOID_MULTIVALUED_READS,
+                    angr.options.AVOID_MULTIVALUED_WRITES
+                }
+                state = angr_proj.factory.blank_state(
+                    add_options=opts
+                )
+                prepare_state_cpp(state, args)
+                _ = engine.process_path(state, p)
+
+                if len(tainted_calls) > 0:
+                    # print(tainted_calls)
+                    break
+        wrapper()
 
         return list(set(map(lambda s: int(s.split("_")[1]), tainted_calls)))
 
