@@ -358,10 +358,10 @@ class NativeLibAnalyzer(object):
                 vt = self._get_returned_vtable_path_executor(offset)
         except TimeoutError:
             CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
-        except Exception as e:
-            CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
-            NativeLibAnalyzer.log.warning("get_returned_vtable failed (use_angr=%s), ERR: %s" % \
-                (str(use_angr), str(e)))
+        # except Exception as e:
+        #     CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
+        #     NativeLibAnalyzer.log.warning("get_returned_vtable failed (use_angr=%s), ERR: %s" % \
+        #         (str(use_angr), str(e)))
         return vt
 
     def _get_jni_functions_ghidra(self):
