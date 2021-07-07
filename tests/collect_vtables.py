@@ -92,3 +92,6 @@ if __name__ == "__main__":
             if len(found_vtables) > 0:
                 print("[MAPPING_PRODUCER_CONSUMER] libpath_consumer %s; offset_consumer %#x; name_consumer %s; libpath_producer %s; offset_producer %#x; name_producer %s; n_vtables %d; vtables %s" % \
                     (consumer.libpath, consumer.offset, consumer.method_name, producer.libpath, producer.offset, producer.method_name, len(found_vtables), ",".join(map(hex, found_vtables))))
+            else:
+                print("[FAILED_MAPPING] libpath_consumer %s; offset_consumer %#x; name_consumer %s" % \
+                    (consumer.libpath, consumer.offset, consumer.method_name))
