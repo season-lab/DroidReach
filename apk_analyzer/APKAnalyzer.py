@@ -19,6 +19,7 @@ from .utils.timeout_decorator import TimeoutError, timeout
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from cex_src.cex import CEXProject
+from cex_src.cex.cfg_extractors.angr_plugin.common import AngrCfgExtractor
 
 NativeMethod = namedtuple("NativeMethod", ["class_name", "method_name", "args_str", "libpath", "libhash", "offset"])
 
@@ -477,19 +478,35 @@ class APKAnalyzer(object):
                 return check_if_jlong_as_cpp_obj(native_method.libpath, native_method.offset, demangled_args)
             return self._check_if_jlong_as_cpp_obj_pexe(native_method.libpath, native_method.offset, demangled_args)
         except TimeoutError:
+            CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
             return list()
         except Exception as e:
+            CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
             APKAnalyzer.log.warning("Unknown error in jlong_as_cpp_obj (use_angr=%s) [ %s ]" % (str(use_angr), str(e)))
             return list()
 
-    def methods_jlong_ret_for_class(self, class_name, lib_whitelist=False, reachable=False):
+    def methods_jlong_ret_for_class(self, class_name, libhash="", lib_whitelist=False, reachable=False):
         res = list()
         for method in self.find_native_methods_implementations(lib_whitelist, reachable):
             if method.class_name == class_name:
-                demangled_name = self.demangle(method.class_name, method.method_name, method.args_str)
-                ret_type = demangled_name.split(": ")[1].split(" ")[0]
-                if ret_type == "long":
+                if method.args_str[-1] == "J":
                     res.append(method)
+
+        def _sort_heuristic(x):
+            # Prefer methods of the same lib
+            lib_score = 0 if x.libhash == libhash else 1
+
+            # Prefer methods with these tokens
+            name_score = sys.maxsize
+            tokens = ["builder", "new", "ctor"]
+            for i, token in enumerate(tokens):
+                if token in x.method_name.lower():
+                    name_score = i
+                    break
+
+            return lib_score, name_score
+
+        res = sorted(res, key=_sort_heuristic)
         return res
 
     def vtable_from_jlong_ret(self, native_method: NativeMethod, use_angr=False):

@@ -1,3 +1,4 @@
+from cex_src.cex.project import CEXProject
 import networkx as nx
 import claripy
 
@@ -6,6 +7,8 @@ from angr.engines.vex.claripy.datalayer import ClaripyDataMixin
 from cex_src.cex.cfg_extractors.angr_plugin.common import AngrCfgExtractor
 
 class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
+    symbol_cache = dict()
+
     def __init__(self, *args, monitor_target=None, **xargs):
         super().__init__(*args, **xargs)
 
@@ -61,9 +64,14 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
             while 1:
                 block.vex # It will shrink the block size according to VEX (dont remove it!)
                 block_size = block.size
+                if block_size == 0:
+                    break
                 # print("processing block:")
                 # block.pp()
+                # print(block_size, hex(bb), size, proc_size)
                 # block.vex.pp()
+                # input("> click a key...")
+
                 self._process_block(block.vex)
                 proc_size += block_size
                 if proc_size >= size:
@@ -73,13 +81,19 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
         return self.state
 
     def _find_symbol_at(self, addr):
+        if (self.project.filename, addr) in PathEngine.symbol_cache:
+            return PathEngine.symbol_cache[self.project.filename, addr]
+
         symb = self.project.loader.find_symbol(addr)
         if symb is None:
             name = self.project.loader.find_plt_stub_name(addr)
             if name is None:
+                PathEngine.symbol_cache[self.project.filename, addr] = None
                 return None
         else:
             name = symb.name
+
+        PathEngine.symbol_cache[self.project.filename, addr] = name
         return name
 
     def has_model(self, addr):
@@ -123,7 +137,9 @@ MAX_DEPTH             = 10
 MAX_PATH_PER_FUNCTION = 10
 
 def generate_paths(cex_proj, engine, entry):
-    cg  = cex_proj.get_callgraph(entry)
+    CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
+    cg = cex_proj.get_callgraph(entry)
+    CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = False
 
     def compose_with_empty(it):
         yield []
@@ -159,6 +175,9 @@ def generate_paths(cex_proj, engine, entry):
             data = cfg.nodes[bb]["data"]
             for insn in data.insns:
                 if insn.addr in ret_sites:
+                    if len(cfg.out_edges(bb)) > 0:
+                        # Probably an erroneous ret_site
+                        continue
                     ret_blocks.add(bb)
         return ret_blocks
 

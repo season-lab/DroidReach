@@ -68,7 +68,7 @@ if __name__ == "__main__":
 
         if len(args) > 0:
             found_vtables   = set()
-            maybe_producers = apka.methods_jlong_ret_for_class(consumer.class_name, lib_whitelist=arm_hashes)
+            maybe_producers = apka.methods_jlong_ret_for_class(consumer.class_name, libhash=consumer.libhash, lib_whitelist=arm_hashes)
             print("[INFO] found %d potential producers" % len(maybe_producers))
             for producer in maybe_producers:
                 if producer in processed_producers:
