@@ -479,6 +479,7 @@ class APKAnalyzer(object):
             return self._check_if_jlong_as_cpp_obj_pexe(native_method.libpath, native_method.offset, demangled_args)
         except TimeoutError:
             CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
+            APKAnalyzer.log.warning("Timeout in jlong_as_cpp_obj (use_angr=%s)" % str(use_angr))
             return list()
         except Exception as e:
             CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True

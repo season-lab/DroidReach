@@ -318,8 +318,12 @@ class NativeLibAnalyzer(object):
         angr_proj = angr.Project(self.libpath, auto_load_libs=False)
         engine    = PathEngine(angr_proj)
 
+        CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
+        _ = cex_proj.get_callgraph(offset)
+        CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = False
+
         found_vals = set()
-        @timeout(60*15)
+        @timeout(60*5)
         def wrapper():
             for p in generate_paths(cex_proj, engine, offset):
                 opts = {
@@ -343,7 +347,9 @@ class NativeLibAnalyzer(object):
         wrapper()
 
         if len(found_vals) > 0:
+            CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
             return list(found_vals)[0].args[0]
+        CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
         return None
 
     def get_returned_vtable(self, offset, use_angr=False):
@@ -358,6 +364,7 @@ class NativeLibAnalyzer(object):
                 vt = self._get_returned_vtable_path_executor(offset)
         except TimeoutError:
             CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
+            NativeLibAnalyzer.log.warning("get_returned_vtable triggered a timeout (use_angr=%s)" % str(use_angr))
         except Exception as e:
             CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
             NativeLibAnalyzer.log.warning("get_returned_vtable failed (use_angr=%s), ERR: %s" % \

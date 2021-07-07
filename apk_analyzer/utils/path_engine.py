@@ -137,9 +137,7 @@ MAX_DEPTH             = 10
 MAX_PATH_PER_FUNCTION = 10
 
 def generate_paths(cex_proj, engine, entry):
-    CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
     cg = cex_proj.get_callgraph(entry)
-    CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = False
 
     def compose_with_empty(it):
         yield []
@@ -192,6 +190,9 @@ def generate_paths(cex_proj, engine, entry):
             return
 
         cfg = cex_proj.get_cfg(addr)
+        if addr not in cfg.nodes:
+            return
+
         addr_f = addr
         if cfg.nodes[addr]["data"].is_thumb:
             addr_f += 1
