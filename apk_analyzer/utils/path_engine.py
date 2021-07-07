@@ -47,7 +47,7 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
         try:
             self.handle_vex_block(irsb)
         except Exception as e:
-            sys.stderr.write("WARNING: handle_vex_block on %#x" % irsb.addr)
+            sys.stderr.write("WARNING: handle_vex_block on %#x\n" % irsb.addr)
             pass
 
     def _perform_vex_stmt_Exit(self, guard, target, jumpkind):
