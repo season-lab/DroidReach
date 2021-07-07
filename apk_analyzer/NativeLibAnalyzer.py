@@ -325,7 +325,10 @@ class NativeLibAnalyzer(object):
         found_vals = set()
         @timeout(60*5)
         def wrapper():
-            for p in generate_paths(cex_proj, engine, offset):
+            max_paths = 1000
+            for i, p in enumerate(generate_paths(cex_proj, engine, offset)):
+                if i >= max_paths:
+                    break
                 opts = {
                     angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY,
                     angr.options.ZERO_FILL_UNCONSTRAINED_REGISTERS,

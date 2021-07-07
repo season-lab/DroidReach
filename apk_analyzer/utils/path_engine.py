@@ -17,10 +17,12 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
             self.ret_register  = "r0"
             self.arg1_register = "r0"
             self.arg2_register = "r1"
+            self.arg3_register = "r2"
         elif self.project.arch.name == "AMD64":
             self.ret_register  = "rax"
             self.arg1_register = "rdi"
             self.arg2_register = "rsi"
+            self.arg3_register = "rdx"
         else:
             raise Exception("Unsopported arch", self.project.arch.name)
 
@@ -129,6 +131,12 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
     def _get_arg1(self):
         return getattr(self.state.regs, self.arg1_register)
 
+    def _get_arg2(self):
+        return getattr(self.state.regs, self.arg2_register)
+
+    def _get_arg3(self):
+        return getattr(self.state.regs, self.arg3_register)
+
     def handle_function_malloc(self):
         self._set_return_value(self.state.heap.allocate(self._get_arg1()))
 
@@ -137,6 +145,17 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
 
     def handle_function__Znwj(self):
         self._set_return_value(self.state.heap.allocate(self._get_arg1()))
+
+    def handle_function_posix_memalign(self):
+        ptr  = self._get_arg1()
+        size = self._get_arg3()
+        if ptr.symbolic or size.symbolic:
+            return
+
+        self.state.memory.store(
+            ptr,
+            claripy.BVV(self.state.heap.allocate(size),
+            self.project.arch.bits))
 
 MAX_DEPTH             = 10
 MAX_PATH_PER_FUNCTION = 10
