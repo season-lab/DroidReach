@@ -70,7 +70,7 @@ def check_malformed_elf(data):
         return True
     return False
 
-@timeout(seconds=60 * 15)
+@timeout(seconds=60*15)
 def check_if_jlong_as_cpp_obj(lib, offset, demangled_args):
     a = NativeJLongAnalyzer(lib)
     return a.check_cpp_obj(offset, demangled_args)

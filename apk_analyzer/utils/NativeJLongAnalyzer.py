@@ -21,8 +21,8 @@ nativedroid_logger.propagate = False
 
 class NativeJLongAnalyzer(object):
     DEBUG     = False
-    MAXITER   = sys.maxsize
-    MAXSTATES = sys.maxsize
+    MAXITER   = 1000
+    MAXSTATES = 500
 
     def __init__(self, libpath):
         self.libpath = libpath
@@ -194,7 +194,7 @@ class NativeJLongAnalyzer(object):
             # Most probably "Too many loaded modules for TLS to handle"
             sys.stderr.write("WARNING: CLEError %s\n" % str(e))
             return list()
-        # except:
-        #     sys.stderr.write("WARNING: unknown error\n")
-        #     return False
+        except:
+            sys.stderr.write("WARNING: unknown error\n")
+            return list()
         return res

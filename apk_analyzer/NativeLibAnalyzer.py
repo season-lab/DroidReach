@@ -170,7 +170,7 @@ class NativeLibAnalyzer(object):
                 return True
         return False
 
-    @timeout(60*15)
+    @timeout(60*5)
     def _get_returned_vtable_angr_cfg_emulated(self, offset):
         class new(angr.SimProcedure):
             def run(self, sim_size):
@@ -231,10 +231,10 @@ class NativeLibAnalyzer(object):
             NativeLibAnalyzer.log.warning("Detected more than one vtable on jni function @ %#x" % offset)
         return vtables[0]
 
-    @timeout(60*15)
+    @timeout(60*5)
     def _get_returned_vtable_angr(self, offset):
-        MAXITER   = sys.maxsize
-        MAXSTATES = sys.maxsize
+        MAXITER   = 1000
+        MAXSTATES = 500
 
         class new(angr.SimProcedure):
             def run(self, sim_size):

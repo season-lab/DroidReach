@@ -6,6 +6,9 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from apk_analyzer import APKAnalyzer
 from cex_src.cex import CEXProject
 
+MAX_PRODUCERS = 10
+
+
 def usage():
     print("%s <apk_path> <mode {0: pexe, 1: angr}>" % sys.argv[0])
     exit(1)
@@ -70,10 +73,20 @@ if __name__ == "__main__":
             found_vtables   = set()
             maybe_producers = apka.methods_jlong_ret_for_class(consumer.class_name, libhash=consumer.libhash, lib_whitelist=arm_hashes)
             print("[INFO] found %d potential producers" % len(maybe_producers))
+
+            i = 0
             for producer in maybe_producers:
+                if producer == consumer:
+                    continue
+
                 if producer in processed_producers:
                     found_vtables |= processed_producers[producer]
-                    continue
+                    break
+
+                if i > MAX_PRODUCERS:
+                    print("[INFO] given up for cosumer @ %#x" % consumer.offset)
+                    break
+                i += 1
 
                 if not use_angr:
                     cache_ghidra_analysis(producer.libpath, producer.offset)
@@ -95,3 +108,5 @@ if __name__ == "__main__":
             else:
                 print("[FAILED_MAPPING] libpath_consumer %s; offset_consumer %#x; name_consumer %s" % \
                     (consumer.libpath, consumer.offset, consumer.method_name))
+
+    print("[INFO] analysis finished")
