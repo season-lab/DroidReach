@@ -18,6 +18,9 @@ cle_logger.propagate = False
 nativedroid_logger = logging.getLogger('nativedroid')
 nativedroid_logger.propagate = False
 
+class DummyEmptyModel(angr.SimProcedure):
+    def run(self, *args):
+        return None
 
 class NativeJLongAnalyzer(object):
     DEBUG     = False
@@ -34,10 +37,33 @@ class NativeJLongAnalyzer(object):
                 AnalysisCenter(None, "", "")).ptr,
                 self.project.arch.bits)
 
+        NativeJLongAnalyzer._hook_fp_models(self.project)
         self.obj     = JObject(self.project)
         self.cpp_obj = JObject(self.project)
         self.vtable  = JObject(self.project)
         self.struct  = JObject(self.project)
+
+    @staticmethod
+    def _hook_fp_models(proj):
+        # Just an hack to avoid crashes
+        def hook_with_dummy(name):
+            proj.hook_symbol(name, DummyEmptyModel(), replace=True)
+
+        float_functions = set()
+        for s in proj.loader.symbols:
+            if proj.is_hooked(s.rebased_addr):
+                h = proj.hooked_by(s.rebased_addr)
+                if h is None or h.cc is None:
+                    continue
+                fun_ty = h.cc.func_ty
+                if fun_ty is None:
+                    continue
+                if "double" in fun_ty.returnty.name or "float" in fun_ty.returnty.name:
+                    float_functions.add(h.display_name)
+
+        to_hook = float_functions
+        for n in to_hook:
+            hook_with_dummy(n)
 
     def mk_type(self, arg_id, arg_type):
         typ_size = get_type_size(self.project, arg_type)
@@ -194,7 +220,7 @@ class NativeJLongAnalyzer(object):
             # Most probably "Too many loaded modules for TLS to handle"
             sys.stderr.write("WARNING: CLEError %s\n" % str(e))
             return list()
-        except:
-            sys.stderr.write("WARNING: unknown error\n")
+        except Exception as e:
+            sys.stderr.write("WARNING: unknown error [ %s ]\n" % str(e))
             return list()
         return res
