@@ -7,6 +7,9 @@ from angr.engines.vex.heavy.heavy import SimStateStorageMixin, VEXMixin, VEXLift
 from angr.engines.vex.claripy.datalayer import ClaripyDataMixin
 from cex_src.cex.cfg_extractors.angr_plugin.common import AngrCfgExtractor
 
+class VEXEarlyExit(Exception):
+    pass
+
 class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
     symbol_cache = dict()
 
@@ -49,6 +52,8 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
 
         try:
             self.handle_vex_block(irsb)
+        except VEXEarlyExit:
+            pass
         except Exception as e:
             sys.stderr.write("WARNING: handle_vex_block on %#x\n" % irsb.addr)
             pass
@@ -57,6 +62,9 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
         # print("Exit:", guard, target, jumpkind)
         if self.monitor_target is not None:
             self.monitor_target(self.state, target)
+        if guard.is_true():
+            # This exit is always taken
+            raise VEXEarlyExit
 
     def _perform_vex_defaultexit(self, expr, jumpkind):
         # print("default exit:", expr)
