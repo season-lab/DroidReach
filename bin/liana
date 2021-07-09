@@ -64,7 +64,7 @@ def _check_consumer(apka, consumer, libs=None):
         return
 
     print("[+] Checking if", consumer, "is a consumer")
-    args = apka.jlong_as_cpp_obj(consumer_impl)
+    args = apka.jlong_as_cpp_obj(consumer_impl, use_angr=False)
     print("[!] The consumer uses the args %s as jlong pointers" % str(args))
 
 def _find_vtable(apka, producer, libs=None, reachable=False):
@@ -82,7 +82,7 @@ def _find_vtable(apka, producer, libs=None, reachable=False):
         return
 
     print("[+] Finding vtable for producer", producer)
-    vtable = apka.vtable_from_jlong_ret(producer_impl)
+    vtable = apka.vtable_from_jlong_ret(producer_impl, use_angr=False)
     if vtable is not None:
         print("[!] vtable:", hex(vtable))
     else:

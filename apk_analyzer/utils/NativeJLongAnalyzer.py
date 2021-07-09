@@ -80,7 +80,7 @@ class NativeJLongAnalyzer(object):
             self.cpp_obj.ptr,
             claripy.BVV(self.vtable.ptr, self.project.arch.bits),
             endness=self.project.arch.memory_endness)
-        for i in range(0, 300, self.project.arch.bits // 8):
+        for i in range(0, 50 * self.project.arch.bytes, self.project.arch.bytes):
             state.memory.store(
                 self.vtable.ptr + i,
                 claripy.BVS("obj_%d_vtable_entry_%d" % (param_i, i), self.project.arch.bits),

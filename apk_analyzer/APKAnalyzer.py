@@ -392,16 +392,16 @@ class APKAnalyzer(object):
 
     def _check_if_jlong_as_cpp_obj_pexe(self, libpath, offset, args):
         def mk_cpp_obj(state, param_i):
-            n_entries_cpp = 30
+            n_entries_cpp = 50
 
-            cpp_obj = state.heap.allocate(state.project.arch.bits // 8)
-            vtable  = state.heap.allocate(state.project.arch.bits // 8 * n_entries_cpp)
+            cpp_obj = state.heap.allocate(state.project.arch.bytes)
+            vtable  = state.heap.allocate(state.project.arch.bytes * n_entries_cpp)
 
             state.memory.store(
                 cpp_obj, claripy.BVV(vtable, state.project.arch.bits),
                 endness=state.project.arch.memory_endness)
 
-            for i in range(0, n_entries_cpp * state.project.arch.bits // 8, state.project.arch.bits // 8):
+            for i in range(0, n_entries_cpp * state.project.arch.bytes, state.project.arch.bytes):
                 state.memory.store(
                     vtable + i,
                     claripy.BVS("obj_%d_vtable_entry_%d" % (param_i, i), state.project.arch.bits),

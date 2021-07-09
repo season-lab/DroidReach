@@ -55,13 +55,15 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
         except VEXEarlyExit:
             pass
         except Exception as e:
-            sys.stderr.write("WARNING: handle_vex_block on %#x\n" % irsb.addr)
-            pass
+            sys.stderr.write("WARNING: handle_vex_block on %#x failed\n" % irsb.addr)
+            # import traceback
+            # print(traceback.format_exc())
 
     def _perform_vex_stmt_Exit(self, guard, target, jumpkind):
         # print("Exit:", guard, target, jumpkind)
         if self.monitor_target is not None:
             self.monitor_target(self.state, target)
+        guard = guard != 0
         if guard.is_true():
             # This exit is always taken
             raise VEXEarlyExit
@@ -199,11 +201,14 @@ def generate_paths(cex_proj, engine, entry):
             if not has_els:
                 break
 
-    def find_ret_blocks(cfg, addr):
+    def find_ret_blocks(cfg, addr, is_outer=True):
         ret_sites  = set(cg.nodes[addr]["data"].return_sites)
         ret_blocks = set()
+
         for bb in cfg.nodes:
             data = cfg.nodes[bb]["data"]
+            if is_outer and len(cfg.out_edges(bb)) == 0:
+                ret_blocks.add(bb)
             for insn in data.insns:
                 if insn.addr in ret_sites:
                     if len(cfg.out_edges(bb)) > 0:
@@ -218,7 +223,7 @@ def generate_paths(cex_proj, engine, entry):
             l += insn.size
         return l
 
-    def find_path_recursive(addr, rec_idx=0):
+    def find_path_recursive(addr, rec_idx=0, is_outer=True):
         if rec_idx > MAX_DEPTH:
             return
 
@@ -229,7 +234,7 @@ def generate_paths(cex_proj, engine, entry):
         addr_f = addr
         if cfg.nodes[addr]["data"].is_thumb:
             addr_f += 1
-        for ret_bb in find_ret_blocks(cfg, addr):
+        for ret_bb in find_ret_blocks(cfg, addr, is_outer=is_outer):
             if addr == ret_bb:
                 # one with fallthrough, and one without
                 if len(cfg.nodes[addr]["data"].calls) > 0:
@@ -239,7 +244,7 @@ def generate_paths(cex_proj, engine, entry):
                         yield [(addr_f, get_block_length(cfg, addr)), (target, 0)]
                     else:
                         yield [(addr_f, get_block_length(cfg, addr))]
-                        for rec_path in find_path_recursive(cfg.nodes[addr]["data"].calls[0], rec_idx+1):
+                        for rec_path in find_path_recursive(cfg.nodes[addr]["data"].calls[0], rec_idx+1, is_outer=False):
                             yield [(addr_f, get_block_length(cfg, addr))] + rec_path
                 else:
                     yield [(addr_f, get_block_length(cfg, addr))]
@@ -257,7 +262,7 @@ def generate_paths(cex_proj, engine, entry):
                             rec_paths_iterators.append([[(target, 0)]].__iter__())
                         else:
                             rec_paths_iterators.append(
-                                compose_with_empty(find_path_recursive(cfg.nodes[bb]["data"].calls[0], rec_idx+1)))
+                                compose_with_empty(find_path_recursive(cfg.nodes[bb]["data"].calls[0], rec_idx+1, is_outer=False)))
 
                 # mix the elements and take some paths. This should be the cartesian product
                 # we are pruning some path
