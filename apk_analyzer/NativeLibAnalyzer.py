@@ -231,10 +231,10 @@ class NativeLibAnalyzer(object):
             NativeLibAnalyzer.log.warning("Detected more than one vtable on jni function @ %#x" % offset)
         return vtables[0]
 
-    @timeout(60*5)
+    @timeout(60 * 15)
     def _get_returned_vtable_angr(self, offset):
-        MAXITER   = 1000
-        MAXSTATES = 500
+        MAXITER   = 1500
+        MAXSTATES = 1000
 
         class new(angr.SimProcedure):
             def run(self, sim_size):
@@ -325,7 +325,7 @@ class NativeLibAnalyzer(object):
 
         found_vals = set()
 
-        max_time = 60 * 5
+        max_time = 60 * 15
         start    = time.time()
         for p in generate_paths(cex_proj, engine, offset):
             opts = {
