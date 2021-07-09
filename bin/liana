@@ -49,6 +49,24 @@ def _find_producer(apka, consumer, libs=None, reachable=False):
                 (maybe_producer.class_name, maybe_producer.method_name, maybe_producer.args_str, maybe_producer.libpath, maybe_producer.offset, vtable))
             break
 
+def _check_consumer(apka, consumer, libs=None):
+    class_name  = "L" + "/".join(consumer.split(".")[:-1]) + ";"
+    method_name = consumer.split(".")[-1]
+
+    consumer_impl = None
+    for method in apka.find_native_methods_implementations(libs):
+        if method.class_name == class_name and method.method_name == method_name:
+            consumer_impl = method
+            break
+
+    if consumer_impl is None:
+        print("[+] Unable to find method", consumer)
+        return
+
+    print("[+] Checking if", consumer, "is a consumer")
+    args = apka.jlong_as_cpp_obj(consumer_impl)
+    print("[!] The consumer uses the args %s as jlong pointers" % str(args))
+
 def _find_vtable(apka, producer, libs=None, reachable=False):
     class_name  = "L" + "/".join(producer.split(".")[:-1]) + ";"
     method_name = producer.split(".")[-1]
@@ -88,12 +106,16 @@ def main(args):
     if args.find_producer is not None:
         _find_producer(apka, args.find_producer, libs, reachable_analysis)
 
+    if args.check_consumer is not None:
+        _check_consumer(apka, args.check_consumer, libs)
+
     if args.find_vtable is not None:
         _find_vtable(apka, args.find_vtable, libs, reachable_analysis)
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Liana APK analyzer')
     parser.add_argument("--print-native-functions", help="Print native functions", action="store_true")
+    parser.add_argument("--check-consumer", help="Check if the method is a consumer", nargs="?")
     parser.add_argument("--find-producer", help="Look for a producer given a consumer", nargs="?")
     parser.add_argument("--find-vtable", help="Look the returned vtable from a producer", nargs="?")
     parser.add_argument("--reachable", help="Analyze only reachable functions", action="store_true")

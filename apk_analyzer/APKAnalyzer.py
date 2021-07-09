@@ -430,11 +430,12 @@ class APKAnalyzer(object):
             return state
 
         tainted_calls = set()
-        def checkTaintedCall(target):
+        def checkTaintedCall(state, target):
             if target is None or isinstance(target, int):
                 return
             for symb_name in target.variables:
                 if "vtable_entry_" in symb_name:
+                    # print(state)
                     tainted_calls.add(symb_name)
                     break
 
@@ -444,7 +445,7 @@ class APKAnalyzer(object):
 
         _ = cex_proj.get_callgraph(offset)
 
-        max_time = 60 * 5
+        max_time = 60 * 15
         start    = time.time()
         for p in generate_paths(cex_proj, engine, offset):
             tainted_calls.clear()

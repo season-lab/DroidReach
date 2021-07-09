@@ -45,6 +45,7 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
         self.state.scratch.bbl_addr = irsb.addr
         self.state.scratch.set_tyenv(irsb.tyenv)
         self.state.scratch.irsb = irsb
+        self.state.ip = irsb.addr
 
         try:
             self.handle_vex_block(irsb)
@@ -55,12 +56,12 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
     def _perform_vex_stmt_Exit(self, guard, target, jumpkind):
         # print("Exit:", guard, target, jumpkind)
         if self.monitor_target is not None:
-            self.monitor_target(target)
+            self.monitor_target(self.state, target)
 
     def _perform_vex_defaultexit(self, expr, jumpkind):
         # print("default exit:", expr)
         if self.monitor_target is not None:
-            self.monitor_target(expr)
+            self.monitor_target(self.state, expr)
 
     def process_path(self, state, path):
         self.state = state.copy()
