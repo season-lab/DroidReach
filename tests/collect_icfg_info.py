@@ -321,7 +321,7 @@ if __name__ == "__main__":
     jni_mapping_log = sys.argv[2]
     mode            = int(sys.argv[3])
 
-    if mode not in {0,1,2,3,4}:
+    if mode not in {0,1,2,3,4,5}:
         usage()
 
     apka     = APKAnalyzer(apk_path)
