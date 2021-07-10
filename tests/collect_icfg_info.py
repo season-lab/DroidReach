@@ -12,6 +12,8 @@ from cex_src.cex import CEXProject
 from cex_src.cex.cfg_extractors import CFGInstruction, CFGNodeData
 from cex_src.cex.cfg_extractors.angr_plugin.common import AngrCfgExtractor
 
+REFINE_LATER = False
+
 def usage():
     print(
         "USAGE: %s <apk_path> <jni_mappings_log> <mode {0, 1, 2, 3, 4}>" % \
@@ -86,6 +88,39 @@ def gen_icfgs_ghidra_angr(main_lib, other_libs, off_args):
         n_insns = n_distinct_instructions(icfg)
 
         print("[ICFG DATA] method ghidra_angr; lib %s; offset %#x; n_nodes %d; n_edges %d; n_insns %d; time %f" % \
+            (main_lib, off, n_nodes, n_edges, n_insns, elapsed))
+
+def gen_icfgs_ghidra_angr_refine_later(main_lib, other_libs, off_args):
+    proj_ghidra_angr = CEXProject(main_lib, other_libs, plugins=["Ghidra", "AngrEmulated"])
+    proj_ghidra      = CEXProject(main_lib, other_libs, plugins=["Ghidra"])
+    ghidra           = CEXProject.pm.get_plugin_by_name("Ghidra")
+
+    start = time.time()
+    ghidra.define_functions(main_lib, list(map(lambda x: x[0], off_args)))
+    elapsed = time.time() - start
+    print("[GHIDRA DEF FUN] time %f" % elapsed)
+
+    for off, _ in off_args:
+        start   = time.time()
+        icfg    = proj_ghidra.get_icfg(off)
+        elapsed = time.time() - start
+        n_nodes = len(icfg.nodes)
+        n_edges = len(icfg.edges)
+        n_insns = n_distinct_instructions(icfg)
+
+        print("[ICFG DATA] method ghidra_angr_1; lib %s; offset %#x; n_nodes %d; n_edges %d; n_insns %d; time %f" % \
+            (main_lib, off, n_nodes, n_edges, n_insns, elapsed))
+
+    for off, _ in off_args:
+        start   = time.time()
+        icfg    = proj_ghidra_angr.get_icfg(off)
+        elapsed = time.time() - start
+        n_nodes = len(icfg.nodes)
+        n_edges = len(icfg.edges)
+        n_insns = n_distinct_instructions(icfg)
+
+        # When Ghidra finished, let's refine the CFGs
+        print("[ICFG DATA] method ghidra_angr_2; lib %s; offset %#x; n_nodes %d; n_edges %d; n_insns %d; time %f" % \
             (main_lib, off, n_nodes, n_edges, n_insns, elapsed))
 
 def gen_icfgs_angr(main_lib, other_libs, off_args):
@@ -333,7 +368,10 @@ if __name__ == "__main__":
         if mode == 0:
             gen_icfgs_ghidra(main_lib, other_bins, jni_data[libpath])
         elif mode == 1:
-            gen_icfgs_ghidra_angr(main_lib, other_bins, jni_data[libpath])
+            if not REFINE_LATER:
+                gen_icfgs_ghidra_angr(main_lib, other_bins, jni_data[libpath])
+            else:
+                gen_icfgs_ghidra_angr_refine_later(main_lib, other_bins, jni_data[libpath])
         elif mode == 2:
             gen_icfgs_angr(main_lib, other_bins, jni_data[libpath])
         elif mode == 3:
