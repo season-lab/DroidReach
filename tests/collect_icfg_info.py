@@ -12,11 +12,9 @@ from cex_src.cex import CEXProject
 from cex_src.cex.cfg_extractors import CFGInstruction, CFGNodeData
 from cex_src.cex.cfg_extractors.angr_plugin.common import AngrCfgExtractor
 
-REFINE_LATER = False
-
 def usage():
     print(
-        "USAGE: %s <apk_path> <jni_mappings_log> <mode {0, 1, 2, 3, 4}>" % \
+        "USAGE: %s <apk_path> <jni_mappings_log> <mode {0, 1, 2, 3, 4, 5}>" % \
         sys.argv[0])
     exit(0)
 
@@ -368,13 +366,12 @@ if __name__ == "__main__":
         if mode == 0:
             gen_icfgs_ghidra(main_lib, other_bins, jni_data[libpath])
         elif mode == 1:
-            if not REFINE_LATER:
-                gen_icfgs_ghidra_angr(main_lib, other_bins, jni_data[libpath])
-            else:
-                gen_icfgs_ghidra_angr_refine_later(main_lib, other_bins, jni_data[libpath])
+            gen_icfgs_ghidra_angr(main_lib, other_bins, jni_data[libpath])
         elif mode == 2:
             gen_icfgs_angr(main_lib, other_bins, jni_data[libpath])
         elif mode == 3:
             gen_icfgs_angr_all_libs(main_lib, other_bins, jni_data[libpath])
         elif mode == 4:
             gen_icfgs_angr_all_libs_no_timeout(main_lib, other_bins, jni_data[libpath])
+        elif mode == 5:
+            gen_icfgs_ghidra_angr_refine_later(main_lib, other_bins, jni_data[libpath])
