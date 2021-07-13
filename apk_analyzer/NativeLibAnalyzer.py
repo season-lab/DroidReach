@@ -280,7 +280,7 @@ class NativeLibAnalyzer(object):
                             first_entry = s.mem[vtable].uint32_t.resolved
                             if not first_entry.symbolic:
                                 section = proj.loader.find_section_containing(first_entry.args[0])
-                                if section is not None and s.name == ".text":
+                                if section is not None and section.name == ".text":
                                     vtables.append(vtable.args[0])
                                     break
             i += 1
