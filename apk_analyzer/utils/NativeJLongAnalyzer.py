@@ -24,8 +24,8 @@ class DummyEmptyModel(angr.SimProcedure):
 
 class NativeJLongAnalyzer(object):
     DEBUG     = False
-    MAXITER   = 1000
-    MAXSTATES = 500
+    MAXITER   = sys.maxsize
+    MAXSTATES = 10000
 
     def __init__(self, libpath):
         self.libpath = libpath
@@ -64,6 +64,8 @@ class NativeJLongAnalyzer(object):
         to_hook = float_functions
         for n in to_hook:
             hook_with_dummy(n)
+
+        hook_with_dummy("clock_gettime")
 
     def mk_type(self, arg_id, arg_type):
         typ_size = get_type_size(self.project, arg_type)

@@ -85,9 +85,9 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
                 if block_size == 0:
                     break
                 # print("processing block:")
-                # block.pp()
-                # print(block_size, hex(bb), size, proc_size)
                 # block.vex.pp()
+                # block.pp()
+                # print(block_size, hex(bb), size, proc_size, self.state.regs.r4)
                 # input("> click a key...")
 
                 self._process_block(block.vex)
@@ -155,6 +155,9 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
         self._set_return_value(self.state.heap.allocate(self._get_arg1()))
 
     def handle_function__Znwj(self):
+        self._set_return_value(self.state.heap.allocate(self._get_arg1()))
+
+    def handle_function__ZnajRKSt9nothrow_t(self):
         self._set_return_value(self.state.heap.allocate(self._get_arg1()))
 
     def handle_function_posix_memalign(self):

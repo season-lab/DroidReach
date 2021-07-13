@@ -39,7 +39,7 @@ def _find_producer(apka, consumer, libs=None, reachable=False):
         return
 
     print("[+] Finding producer for method", consumer)
-    maybe_producers = apka.methods_jlong_ret_for_class(class_name, libhash=consumer_impl.libhash, lib_whitelist=libs, reachable=False)
+    maybe_producers = apka.find_potential_producers(consumer_impl, lib_whitelist=libs, reachable=False)
     print("[+] Found %d possible producers" % len(maybe_producers))
     for maybe_producer in maybe_producers:
         print(maybe_producer)

@@ -71,17 +71,20 @@ if __name__ == "__main__":
 
         if len(args) > 0:
             found_vtables   = set()
-            maybe_producers = apka.methods_jlong_ret_for_class(consumer.class_name, libhash=consumer.libhash, lib_whitelist=arm_hashes)
+            maybe_producers = apka.find_potential_producers(consumer, lib_whitelist=arm_hashes)
             print("[INFO] found %d potential producers" % len(maybe_producers))
 
             i = 0
             for producer in maybe_producers:
+                if len(found_vtables) > 0:
+                    break
+
                 if producer == consumer:
                     continue
 
                 if producer in processed_producers:
                     found_vtables |= processed_producers[producer]
-                    break
+                    continue
 
                 if i > MAX_PRODUCERS:
                     print("[INFO] given up for cosumer @ %#x" % consumer.offset)

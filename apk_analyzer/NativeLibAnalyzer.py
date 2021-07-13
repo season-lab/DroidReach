@@ -233,8 +233,8 @@ class NativeLibAnalyzer(object):
 
     @timeout(60 * 15)
     def _get_returned_vtable_angr(self, offset):
-        MAXITER   = 1500
-        MAXSTATES = 1000
+        MAXITER   = sys.maxsize
+        MAXSTATES = 10000
 
         class new(angr.SimProcedure):
             def run(self, sim_size):
@@ -294,9 +294,6 @@ class NativeLibAnalyzer(object):
         if len(smgr.active) > MAXSTATES:
             sys.stderr.write("WARNING: %s @ %#x\n" % (self.libpath, offset))
             sys.stderr.write("WARNING: killed for generating too many states\n")
-        if i > MAXITER:
-            sys.stderr.write("WARNING: %s @ %#x\n" % (self.libpath, offset))
-            sys.stderr.write("WARNING: killed for exceeding max iter\n")
 
         if len(vtables) > 0:
             return vtables[0]

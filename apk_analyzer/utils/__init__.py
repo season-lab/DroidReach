@@ -74,3 +74,36 @@ def check_malformed_elf(data):
 def check_if_jlong_as_cpp_obj(lib, offset, demangled_args):
     a = NativeJLongAnalyzer(lib)
     return a.check_cpp_obj(offset, demangled_args)
+
+def LCSubStr(X, Y):
+    # Create a table to store lengths of
+    # longest common suffixes of substrings.
+    # Note that LCSuff[i][j] contains the
+    # length of longest common suffix of
+    # X[0...i-1] and Y[0...j-1]. The first
+    # row and first column entries have no
+    # logical meaning, they are used only
+    # for simplicity of the program.
+    m = len(X)
+    n = len(Y)
+ 
+    # LCSuff is the table with zero
+    # value initially in each cell
+    LCSuff = [[0 for k in range(n+1)] for l in range(m+1)]
+ 
+    # To store the length of
+    # longest common substring
+    result = 0
+ 
+    # Following steps to build
+    # LCSuff[m+1][n+1] in bottom up fashion
+    for i in range(m + 1):
+        for j in range(n + 1):
+            if (i == 0 or j == 0):
+                LCSuff[i][j] = 0
+            elif (X[i-1] == Y[j-1]):
+                LCSuff[i][j] = LCSuff[i-1][j-1] + 1
+                result = max(result, LCSuff[i][j])
+            else:
+                LCSuff[i][j] = 0
+    return result

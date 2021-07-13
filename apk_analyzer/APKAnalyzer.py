@@ -13,7 +13,7 @@ from collections import namedtuple
 from androguard.misc import AnalyzeAPK
 from .JavaNameDemangler import JavaNameDemangler, FailedDemanglingError
 from .NativeLibAnalyzer import NativeLibAnalyzer
-from .utils import md5_hash, get_native_methods, check_if_jlong_as_cpp_obj, check_malformed_elf
+from .utils import md5_hash, get_native_methods, check_if_jlong_as_cpp_obj, check_malformed_elf, LCSubStr
 from .utils.app_component import AppComponent
 from .utils.path_engine import PathEngine, generate_paths
 from .utils.timeout_decorator import TimeoutError, timeout
@@ -395,6 +395,7 @@ class APKAnalyzer(object):
             n_entries_cpp = 50
 
             cpp_obj = state.heap.allocate(state.project.arch.bytes)
+            _       = state.heap.allocate(0x1000)  # redzone
             vtable  = state.heap.allocate(state.project.arch.bytes * n_entries_cpp)
 
             state.memory.store(
@@ -435,7 +436,7 @@ class APKAnalyzer(object):
                 return
             for symb_name in target.variables:
                 if "vtable_entry_" in symb_name:
-                    # print(state)
+                    # print(state, target)
                     tainted_calls.add(symb_name)
                     break
 
@@ -493,29 +494,36 @@ class APKAnalyzer(object):
             APKAnalyzer.log.warning("Unknown error in jlong_as_cpp_obj (use_angr=%s) [ %s ]" % (str(use_angr), str(e)))
             return list()
 
-    def methods_jlong_ret_for_class(self, class_name, libhash="", lib_whitelist=False, reachable=False):
+    def methods_jlong_ret_for_class(self, class_name, lib_whitelist=False, reachable=False):
         res = list()
         for method in self.find_native_methods_implementations(lib_whitelist, reachable):
             if method.class_name == class_name:
                 if method.args_str[-1] == "J":
                     res.append(method)
 
+        return res
+
+    def find_potential_producers(self, consumer, lib_whitelist=False, reachable=False):
         def _sort_heuristic(x):
             # Prefer methods of the same lib
-            lib_score = 0 if x.libhash == libhash else 1
+            lib_score = 0 if x.libhash == consumer.libhash else 1
+
+            # Prefer methods that have a substring in common
+            common_substring_score = -LCSubStr(x.method_name, consumer.method_name)
 
             # Prefer methods with these tokens
             name_score = sys.maxsize
-            tokens = ["builder", "new", "ctor"]
+            tokens = ["getinstance", "builder", "new", "ctor"]
             for i, token in enumerate(tokens):
                 if token in x.method_name.lower():
                     name_score = i
                     break
 
-            return lib_score, name_score
+            return lib_score, name_score, common_substring_score
 
-        res = sorted(res, key=_sort_heuristic)
-        return res
+        potential_producers = self.methods_jlong_ret_for_class(consumer.class_name, lib_whitelist=lib_whitelist, reachable=reachable)
+        potential_producers = sorted(potential_producers, key=_sort_heuristic)
+        return potential_producers
 
     def vtable_from_jlong_ret(self, native_method: NativeMethod, use_angr=False):
         # Check whether the return value of the native method is a C++ obj ptr, and if so it returns
