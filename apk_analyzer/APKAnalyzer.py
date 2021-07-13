@@ -444,6 +444,7 @@ class APKAnalyzer(object):
         angr_proj = angr.Project(libpath, auto_load_libs=False)
         engine    = PathEngine(angr_proj, monitor_target=checkTaintedCall)
 
+        offset -= offset % 2
         _ = cex_proj.get_callgraph(offset)
 
         max_time = 60 * 15
