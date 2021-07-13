@@ -228,7 +228,7 @@ def generate_paths(cex_proj, engine, entry):
             return
 
         cfg = cex_proj.get_cfg(addr)
-        if addr not in cfg.nodes:
+        if cfg is None or addr not in cfg.nodes:
             return
 
         addr_f = addr
