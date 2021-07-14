@@ -51,6 +51,16 @@ if __name__ == "__main__":
     ghidra = CEXProject.pm.get_plugin_by_name("Ghidra")
     processed_producers = dict()
 
+    n_long_as_ptr = 0
+    for consumer in reachable_native_methods:
+        demangled_name = apka.demangle(consumer.class_name, consumer.method_name, consumer.args_str)
+        demangled_args = demangled_name[demangled_name.find("(")+1:demangled_name.find(")")]
+        demangled_args = demangled_args.replace(" ", "").split(",")
+        if "long" in demangled_args:
+            n_long_as_ptr += 1
+
+    print("[INFO] %d potential consumers" % n_long_as_ptr)
+
     for consumer in reachable_native_methods:
         demangled_name = apka.demangle(consumer.class_name, consumer.method_name, consumer.args_str)
         demangled_args = demangled_name[demangled_name.find("(")+1:demangled_name.find(")")]
