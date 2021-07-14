@@ -148,6 +148,25 @@ def _find_path_to(apka, what, libs=None, reachable=False):
         else:
             print("[!] No path (callgraph)")
 
+def _show_lib_dep_graph(apka):
+    ldg = apka.build_lib_dependency_graph()
+
+    print("digraph {\n\tnode [shape=box];")
+    print("\tgraph [fontname = \"monospace\"];")
+    print("\tnode  [fontname = \"monospace\"];")
+    print("\tedge  [fontname = \"monospace\"];")
+
+    for n in ldg.nodes:
+        print("\t\"%s\" [label=\"%s\"];" % (n, ldg.nodes[n]["path"]))
+    print()
+
+    for src, dst, i in ldg.edges:
+        if i != 0:
+            continue
+        print("\t\"%s\" -> \"%s\";" % (src, dst))
+    print("}")
+
+
 def main(args):
     apk_path = args.apk
 
@@ -175,6 +194,9 @@ def main(args):
     if args.find_path_to is not None:
         _find_path_to(apka, args.find_path_to, libs, reachable_analysis)
 
+    if args.show_lib_dep_graph:
+        _show_lib_dep_graph(apka)
+
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Liana APK analyzer')
     parser.add_argument("--print-native-functions", help="Print native functions", action="store_true")
@@ -184,6 +206,7 @@ if __name__=="__main__":
     parser.add_argument("--reachable", help="Analyze only reachable functions", action="store_true")
     parser.add_argument("--all-archs", help="Analyze all archs (not only armv7) [Experimental]", action="store_true")
     parser.add_argument("--find-path-to", metavar="libpath.so@offset", help="Find path to native function", nargs="?")
+    parser.add_argument("--show-lib-dep-graph", help="Print the library dependency graph in dot to stdout", action="store_true")
 
     parser.add_argument("apk", help="The binary to analyze")
 
