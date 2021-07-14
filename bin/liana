@@ -132,11 +132,14 @@ def _find_path_to(apka, what, libs=None, reachable=False):
         cg   = proj.get_callgraph(src_addr)
         print("[+] OK (n_nodes: %d, n_edges: %d)" % (len(cg.nodes), len(cg.edges)))
 
-        if offset not in cg.nodes:
+        binfo       = proj.get_bininfo(lib)
+        rebased_off = offset + binfo.min_addr
+
+        if rebased_off not in cg.nodes:
             print("[!] No path (addr not in callgraph)")
-        elif nx.has_path(cg, src_addr, offset):
+        elif nx.has_path(cg, src_addr, rebased_off):
             print("[+] Path found:")
-            p = nx.shortest_path(cg, src_addr, offset)
+            p = nx.shortest_path(cg, src_addr, rebased_off)
             print(" -> %s %s" % (method.class_name, method.method_name))
             for v in p:
                 data = cg.nodes[v]["data"]
