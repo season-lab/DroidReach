@@ -169,6 +169,7 @@ class NativeJLongAnalyzer(object):
                 return
             for symb_name in exit_target.variables:
                 if "vtable_entry_" in symb_name:
+                    print("[FOUND VCALL] libpath %s; offset %#x; state %s; target %s" % (self.libpath, addr, str(state), str(exit_target)))
                     tainted_calls.append(symb_name)
                     break
         state.inspect.b('exit', when=angr.BP_BEFORE, action=checkTaintedCall)

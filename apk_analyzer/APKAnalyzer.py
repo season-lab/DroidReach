@@ -436,7 +436,7 @@ class APKAnalyzer(object):
                 return
             for symb_name in target.variables:
                 if "vtable_entry_" in symb_name:
-                    # print(state, target)
+                    print("[FOUND VCALL] libpath %s; offset %#x; state %s; target %s" % (libpath, offset, str(state), str(target)))
                     tainted_calls.add(symb_name)
                     break
 
