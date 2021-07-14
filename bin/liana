@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 
+import networkx as nx
 import argparse
 import sys
 import os
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from apk_analyzer import APKAnalyzer
+from apk_analyzer.utils import md5_hash
+from cex_src.cex import CEXProject
 
 def _print_native_functions(apka, libs=None, reachable=False):
     methods = None
@@ -88,6 +91,60 @@ def _find_vtable(apka, producer, libs=None, reachable=False):
     else:
         print("[!] vtable not found")
 
+def _find_path_to(apka, what, libs=None, reachable=False):
+    lib, offset = what.split("@")
+    offset = int(offset, 16)
+
+    if libs is None:
+        libs = apka.get_analyzed_libs()
+    else:
+        libs = apka.get_armv7_libs()
+    lib_hashes = list(map(lambda l: l.libhash, libs))
+
+    libhash = None
+    for l in libs:
+        if l.libname == lib:
+            libhash = l.libhash
+    if libhash is None:
+        print("[!] Unable to find lib %s" % lib)
+        return
+
+    print("[+] Looking for path to %s @ %#x" % (lib, offset))
+
+    print("[+] Building library dependency graph... ", end="")
+    ldg = apka.build_lib_dependency_graph()
+    print("OK")
+
+    for method in apka.find_native_methods_implementations(lib_hashes, reachable):
+        print("[+] Checking path from native method %s %s @ %s %#x" % \
+            (method.class_name, method.method_name, method.libpath, method.offset))
+        if not (method.libhash == libhash or nx.has_path(ldg, method.libhash, libhash)):
+            print("[!] No path (lib dep graph)")
+            continue
+
+        main_lib   = method.libpath
+        other_libs = list(map(lambda l: l.libpath, filter(lambda l: l.libpath != method.libpath, libs)))
+
+        src_addr = method.offset & 0xfffffffe
+
+        print("[+] Building the callgraph... ", end="")
+        proj = CEXProject(main_lib, other_libs, plugins=["Ghidra", "AngrEmulated"])
+        cg   = proj.get_callgraph(src_addr)
+        print("[+] OK (n_nodes: %d, n_edges: %d)" % (len(cg.nodes), len(cg.edges)))
+
+        if offset not in cg.nodes:
+            print("[!] No path (addr not in callgraph)")
+        elif nx.has_path(cg, src_addr, offset):
+            print("[+] Path found:")
+            p = nx.shortest_path(cg, src_addr, offset)
+            print(" -> %s %s" % (method.class_name, method.method_name))
+            for v in p:
+                data = cg.nodes[v]["data"]
+                print(" -> %s @ %#x" % (data.name, v))
+            break
+        else:
+            print("[!] No path (callgraph)")
+
 def main(args):
     apk_path = args.apk
 
@@ -112,6 +169,9 @@ def main(args):
     if args.find_vtable is not None:
         _find_vtable(apka, args.find_vtable, libs, reachable_analysis)
 
+    if args.find_path_to is not None:
+        _find_path_to(apka, args.find_path_to, libs, reachable_analysis)
+
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Liana APK analyzer')
     parser.add_argument("--print-native-functions", help="Print native functions", action="store_true")
@@ -120,6 +180,7 @@ if __name__=="__main__":
     parser.add_argument("--find-vtable", help="Look the returned vtable from a producer", nargs="?")
     parser.add_argument("--reachable", help="Analyze only reachable functions", action="store_true")
     parser.add_argument("--all-archs", help="Analyze all archs (not only armv7) [Experimental]", action="store_true")
+    parser.add_argument("--find-path-to", metavar="libpath.so@offset", help="Find path to native function", nargs="?")
 
     parser.add_argument("apk", help="The binary to analyze")
 
