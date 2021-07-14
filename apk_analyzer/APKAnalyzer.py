@@ -447,7 +447,7 @@ class APKAnalyzer(object):
         offset -= offset % 2
         _ = cex_proj.get_callgraph(offset)
 
-        max_time = 60 * 15
+        max_time = 60 * 5
         start    = time.time()
         for p in generate_paths(cex_proj, engine, offset):
             tainted_calls.clear()

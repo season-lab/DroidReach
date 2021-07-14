@@ -322,7 +322,7 @@ class NativeLibAnalyzer(object):
 
         found_vals = set()
 
-        max_time = 60 * 15
+        max_time = 60*5
         start    = time.time()
         for p in generate_paths(cex_proj, engine, offset):
             opts = {
