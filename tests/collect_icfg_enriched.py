@@ -36,6 +36,16 @@ if __name__ == "__main__":
     apk_path = sys.argv[1]
     log_path = sys.argv[2]
 
+    at_least_one_mapping = False
+    fin = open(log_path, "r")
+    for line in fin:
+        line = line.strip()
+        if line.startswith("[MAPPING_PRODUCER_CONSUMER] "):
+            at_least_one_mapping = True
+            break
+    if not at_least_one_mapping:
+        exit(0)
+
     apka       = APKAnalyzer(apk_path)
     armv7_libs = apka.get_armv7_libs()
 
