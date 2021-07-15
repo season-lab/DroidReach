@@ -1,5 +1,6 @@
 import logging
 import claripy
+import time
 import angr
 import sys
 import cle
@@ -179,6 +180,9 @@ class NativeJLongAnalyzer(object):
             print("entry r1", state.regs.r1)
             print("entry r2", state.regs.r2)
 
+        max_time = 60 * 15
+        start    = time.time()
+
         i    = 0
         smgr = self.project.factory.simgr(state, veritesting=False, save_unsat=False)
         while len(smgr.active) > 0:
@@ -201,6 +205,9 @@ class NativeJLongAnalyzer(object):
                 print(i, smgr, smgr.errored, tainted_calls)
             if len(smgr.active) > NativeJLongAnalyzer.MAXSTATES:
                 # Try to limit RAM usage
+                break
+            if time.time() - start > max_time:
+                # Limit time
                 break
             i += 1
 

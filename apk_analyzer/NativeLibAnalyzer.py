@@ -231,7 +231,6 @@ class NativeLibAnalyzer(object):
             NativeLibAnalyzer.log.warning("Detected more than one vtable on jni function @ %#x" % offset)
         return vtables[0]
 
-    @timeout(60 * 15)
     def _get_returned_vtable_angr(self, offset):
         MAXITER   = sys.maxsize
         MAXSTATES = 10000
@@ -255,17 +254,15 @@ class NativeLibAnalyzer(object):
 
         vtables = list()
 
-        i    = 0
-        smgr = proj.factory.simgr(state, veritesting=False, save_unsat=False)
+        i        = 0
+        max_time = 60 * 15
+        start    = time.time()
+        smgr     = proj.factory.simgr(state, veritesting=False, save_unsat=False)
         while len(smgr.active) > 0:
             if len(vtables) > 0 or i > MAXITER:
                 break
 
             smgr.explore(n=1)
-            if len(smgr.active) > MAXSTATES:
-                # Try to limit RAM usage
-                break
-
             for stash in smgr.stashes:
                 q = smgr.stashes[stash]
                 for s in q:
@@ -283,6 +280,13 @@ class NativeLibAnalyzer(object):
                                 if section is not None and section.name == ".text":
                                     vtables.append(vtable.args[0])
                                     break
+            if len(smgr.active) > MAXSTATES:
+                # Try to limit RAM usage
+                break
+            if time.time() > max_time:
+                # Try to limit time
+                break
+
             i += 1
 
         if len(smgr.errored) > 0:
