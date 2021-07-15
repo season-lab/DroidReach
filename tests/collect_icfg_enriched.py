@@ -40,12 +40,24 @@ if __name__ == "__main__":
     armv7_libs = apka.get_armv7_libs()
 
     angr_emu = CEXProject.pm.get_plugin_by_name("AngrEmulated")
+    ghidra   = CEXProject.pm.get_plugin_by_name("Ghidra")
 
-    # [MAPPING_PRODUCER_CONSUMER] libpath_consumer /dev/shm/apk_analyzer_data/b64726fee78fa5f448c1f242677b5942/lib/armeabi-v7a/libtwitchsdk.so; offset_consumer 0x63d74c; name_consumer Initialize; libpath_producer /dev/shm/apk_analyzer_data/b64726fee78fa5f448c1f242677b5942/lib/armeabi-v7a/libtwitchsdk.so; offset_producer 0x63d088; name_producer CreateNativeInstance; n_vtables 1; vtables 0x87ec4c
-    fin = open(log_path, "r")
+    vcalls = dict()
+    fin    = open(log_path, "r")
     for line in fin:
         line = line.strip()
+        if line.startswith("[FOUND VCALL] "):
+            # [FOUND VCALL] libpath /dev/shm/apk_analyzer_data/428edc269851965938bf36da0e2bfac8/lib/armeabi-v7a/libAdobeReader.so; offset 0x46b200; state <SimState @ 0x46b209>; target <BV32 obj_0_vtable_entry_4_66807_32>
+            libpath, offset, callsite, target = line.split(";")
+            libpath    = libpath.split(" ")[-1]
+            offset     = int(offset.split(" ")[-1], 16)
+            callsite   = int(callsite.split(" ")[-1].replace(">", ""), 16)
+            vtable_off = int(target.split("_")[4])
+
+            vcalls[libpath, offset] = (callsite, vtable_off)
+
         if line.startswith("[MAPPING_PRODUCER_CONSUMER] "):
+            # [MAPPING_PRODUCER_CONSUMER] libpath_consumer /dev/shm/apk_analyzer_data/b64726fee78fa5f448c1f242677b5942/lib/armeabi-v7a/libtwitchsdk.so; offset_consumer 0x63d74c; name_consumer Initialize; libpath_producer /dev/shm/apk_analyzer_data/b64726fee78fa5f448c1f242677b5942/lib/armeabi-v7a/libtwitchsdk.so; offset_producer 0x63d088; name_producer CreateNativeInstance; n_vtables 1; vtables 0x87ec4c
             libpath, off, _, _, _, _, _, vtable = line.split(";")
 
             libpath = libpath.split(" ")[-1]
@@ -60,15 +72,42 @@ if __name__ == "__main__":
                 # print("built state:", s, s.regs.r2, s.mem[obj].uint32_t)
                 return s
 
-            off        -= off % 2
-            main_lib    = libpath
-            other_libs  = list(map(lambda l: l.libpath, filter(lambda l: l.libpath != main_lib, armv7_libs)))
+            off       -= off % 2
+            main_lib   = libpath
+            other_libs = list(map(lambda l: l.libpath, filter(lambda l: l.libpath != main_lib, armv7_libs)))
+
+            callsite = None
+            dst      = None
+            if (libpath, off) not in vcalls:
+                print("[ERR] No vcall found for", libpath, hex(off))
+            else:
+                callsite, vtable_off = vcalls[libpath, off]
+
+                angr_proj = angr.Project(libpath, auto_load_libs=False)
+                s         = angr_proj.factory.blank_state()
+                dst = s.mem[vtable + vtable_off].uint32_t.resolved
+
+                if dst.symbolic:
+                    print("[ERR] Invalid dst", dst)
+                    callsite = None
+                    dst      = None
+                else:
+                    dst = dst.args[0]
 
             proj = CEXProject(libpath, libs=other_libs, plugins=["Ghidra", "AngrEmulated"])
             angr_emu.set_state_constructor(off, constructor)
 
-            start   = time.time()
-            icfg    = proj.get_icfg(off)
+            if dst is not None:
+                # AAA fix me, off should be the src function, I only have the callsite (must be logged probably)
+                additional_cg_edges = [(off, dst, off)]
+            else:
+                additional_cg_edges = None
+
+            start = time.time()
+            if dst is not None:
+                # define vcall target
+                ghidra.define_functions(main_lib, [dst & 0xfffffffe])
+            icfg    = proj.get_icfg(off, additional_cg_edges=additional_cg_edges)
             elapsed = time.time() - start
             n_nodes = len(icfg.nodes)
             n_edges = len(icfg.edges)
