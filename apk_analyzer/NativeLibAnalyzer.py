@@ -328,7 +328,7 @@ class NativeLibAnalyzer(object):
 
         max_time = 60*5
         start    = time.time()
-        for p in generate_paths(cex_proj, engine, offset):
+        for p in generate_paths(cex_proj, engine, offset, only_with_new=True):
             opts = {
                 angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY,
                 angr.options.ZERO_FILL_UNCONSTRAINED_REGISTERS,

@@ -174,7 +174,8 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
 MAX_DEPTH             = 10
 MAX_PATH_PER_FUNCTION = 10
 
-def generate_paths(cex_proj, engine, entry):
+def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indirect_call=False):
+    block_data_cache = dict()
     cg = cex_proj.get_callgraph(entry)
 
     def compose_with_empty(it):
@@ -210,6 +211,7 @@ def generate_paths(cex_proj, engine, entry):
 
         for bb in cfg.nodes:
             data = cfg.nodes[bb]["data"]
+            block_data_cache[bb] = data
             if is_outer and len(cfg.out_edges(bb)) == 0:
                 ret_blocks.add(bb)
             for insn in data.insns:
@@ -284,5 +286,43 @@ def generate_paths(cex_proj, engine, entry):
                     yield complete_path
                     complete_path = list()
 
+    def is_indirect_branch(insn):
+        indirect_branch_strings = {
+            "bx r0",   "bx r1",   "bx r2",
+            "bx r3",   "bx r4",   "bx r5",
+            "bx r6",   "bx r7",   "bx r8",
+            "bx r9",   "bx r10",  "bx r11",
+            "bx r12",  "bx r13",  "bx r14",
+            "blx r0",  "blx r1",  "blx r2",
+            "blx r3",  "blx r4",  "blx r5",
+            "blx r6",  "blx r7",  "blx r8",
+            "blx r9",  "blx r10", "blx r11",
+            "blx r12", "blx r13", "blx r14"
+        }
+
+        for s in indirect_branch_strings:
+            if s in insn.mnemonic.lower():
+                return True
+        return False
+
     for p in find_path_recursive(entry):
+        if only_with_new:
+            has_new = False
+            for addr, _ in p:
+                if engine.has_model(addr):
+                    has_new = True
+                    break
+            if not has_new:
+                continue
+        if only_with_indirect_call:
+            has_indirect_call = False
+            for addr, _ in p:
+                if addr not in block_data_cache:
+                    continue
+                data = block_data_cache[addr]
+                for insn in data.insns:
+                    if is_indirect_branch(insn):
+                        has_indirect_call = True
+            if not has_indirect_call:
+                continue
         yield p

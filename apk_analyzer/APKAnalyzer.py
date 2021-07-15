@@ -449,7 +449,7 @@ class APKAnalyzer(object):
 
         max_time = 60 * 5
         start    = time.time()
-        for p in generate_paths(cex_proj, engine, offset):
+        for p in generate_paths(cex_proj, engine, offset, only_with_indirect_call=True):
             tainted_calls.clear()
             opts = {
                 angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY,
