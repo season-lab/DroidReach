@@ -84,7 +84,8 @@ def _find_vtable(apka, producer, libs=None, reachable=False):
         print("[+] Unable to find method", producer)
         return
 
-    print("[+] Finding vtable for producer", producer)
+    print(producer_impl)
+    print("[+] Finding vtable for producer", producer, "@", hex(producer_impl.offset))
     vtable = apka.vtable_from_jlong_ret(producer_impl, use_angr=False)
     if vtable is not None:
         print("[!] vtable:", hex(vtable))

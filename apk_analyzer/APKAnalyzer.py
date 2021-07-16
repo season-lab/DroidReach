@@ -420,7 +420,11 @@ class APKAnalyzer(object):
             if len(native_impls) == 0:
                 continue
 
-            native_impl = native_impls[0]
+            for n in native_impls:
+                if "libbzmedia_less.so" in n.analyzer.libpath:
+                    continue
+                native_impl = n
+
             res.append(
                 NativeMethod(
                     class_name, method_name, args_str, native_impl.analyzer.libpath, native_impl.analyzer.libhash, native_impl.offset)
@@ -536,12 +540,20 @@ class APKAnalyzer(object):
             APKAnalyzer.log.warning("Unknown error in jlong_as_cpp_obj (use_angr=%s) [ %s ]" % (str(use_angr), str(e)))
             return list()
 
-    def methods_jlong_ret_for_class(self, class_name, lib_whitelist=False, reachable=False):
+    def methods_jlong_ret_for_class(self, class_name, lib_whitelist=None, reachable=False):
         res = list()
         for method in self.find_native_methods_implementations(lib_whitelist, reachable):
             if method.class_name == class_name:
                 if method.args_str[-1] == "J":
                     res.append(method)
+
+        return res
+
+    def methods_jlong(self, lib_whitelist=None, reachable=False):
+        res = list()
+        for method in self.find_native_methods_implementations(lib_whitelist, reachable):
+            if method.args_str[-1] == "J":
+                res.append(method)
 
         return res
 
@@ -565,6 +577,12 @@ class APKAnalyzer(object):
 
         potential_producers = self.methods_jlong_ret_for_class(consumer.class_name, lib_whitelist=lib_whitelist, reachable=reachable)
         potential_producers = sorted(potential_producers, key=_sort_heuristic)
+
+        if len(potential_producers) == 0:
+            print("WARNING: relaxing same class heuristic")
+            potential_producers = self.methods_jlong(lib_whitelist=lib_whitelist, reachable=reachable)
+            potential_producers = sorted(potential_producers, key=_sort_heuristic)
+
         return potential_producers
 
     def vtable_from_jlong_ret(self, native_method: NativeMethod, use_angr=False):

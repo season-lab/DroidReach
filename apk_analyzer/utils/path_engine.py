@@ -127,6 +127,21 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
             return True
         return False
 
+    def to_skip(self, addr):
+        if addr % 2 == 0 and AngrCfgExtractor.is_thumb(self.project, addr):
+            addr += 1
+
+        name = self._find_symbol_at(addr)
+        if name is None:
+            return False
+
+        if name in {
+            "_ZN7_JNIEnv17GetStringUTFCharsEP8_jstringPh", "__aeabi_memclr8",
+            "_ZN7_JNIEnv12NewGlobalRefEP8_jobject", "_ZN7_JNIEnv11GetMethodIDEP7_jclassPKcS3_",
+            "_ZN7_JNIEnv14DeleteLocalRefEP8_jobject", "_ZN7_JNIEnv21ReleaseStringUTFCharsEP8_jstringPKc", "__stack_chk_fail"}:
+            return True
+        return False
+
     def handle_model(self, addr):
         assert self.has_model(addr)
         if addr % 2 == 0 and AngrCfgExtractor.is_thumb(self.project, addr):
@@ -208,19 +223,20 @@ def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indir
     def find_ret_blocks(cfg, addr, is_outer=True):
         is_outer = True # Every bb without a successor is a potential return
         ret_sites  = set(cg.nodes[addr]["data"].return_sites)
-        ret_blocks = set()
+        ret_blocks = list()
 
         for bb in cfg.nodes:
             data = cfg.nodes[bb]["data"]
             block_data_cache[bb] = data
+
             if is_outer and len(cfg.out_edges(bb)) == 0:
-                ret_blocks.add(bb)
+                ret_blocks.append(bb)
             for insn in data.insns:
                 if insn.addr in ret_sites:
-                    if len(cfg.out_edges(bb)) > 0:
-                        # Probably an erroneous ret_site
-                        continue
-                    ret_blocks.add(bb)
+                    # if len(cfg.out_edges(bb)) > 0:
+                    #     # Probably an erroneous ret_site
+                    #     continue
+                    ret_blocks.insert(0, bb)
         return ret_blocks
 
     def get_block_length(cfg, addr):
@@ -246,7 +262,9 @@ def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indir
                 if len(cfg.nodes[addr]["data"].calls) > 0:
                     assert len(cfg.nodes[addr]["data"].calls) == 1
                     target = cfg.nodes[addr]["data"].calls[0]
-                    if engine.has_model(target):
+                    if engine.to_skip(target):
+                        yield [(addr_f, get_block_length(cfg, addr))]
+                    elif engine.has_model(target):
                         yield [(addr_f, get_block_length(cfg, addr)), (target, 0)]
                     else:
                         if len(cfg.nodes) > 1:
@@ -285,6 +303,8 @@ def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indir
                     if len(cfg.nodes[bb]["data"].calls) > 0:
                         assert len(cfg.nodes[bb]["data"].calls) == 1
                         target = cfg.nodes[bb]["data"].calls[0]
+                        if engine.to_skip(target):
+                            continue
                         if engine.has_model(target):
                             # If the target function is a model, we do not want to avoid the call
                             # moreover, we do not want to explore the code if it is not a stub!
@@ -304,6 +324,8 @@ def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indir
 
                         complete_path.append((bb, get_block_length(cfg, orig_bb)))
                         if len(cfg.nodes[orig_bb]["data"].calls) > 0:
+                            if engine.to_skip(cfg.nodes[orig_bb]["data"].calls[0]):
+                                continue
                             complete_path += rec_paths[i]
                             i += 1
 
