@@ -206,6 +206,7 @@ def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indir
                 break
 
     def find_ret_blocks(cfg, addr, is_outer=True):
+        is_outer = True # Every bb without a successor is a potential return
         ret_sites  = set(cg.nodes[addr]["data"].return_sites)
         ret_blocks = set()
 
@@ -248,7 +249,9 @@ def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indir
                     if engine.has_model(target):
                         yield [(addr_f, get_block_length(cfg, addr)), (target, 0)]
                     else:
-                        yield [(addr_f, get_block_length(cfg, addr))]
+                        if len(cfg.nodes) > 1:
+                            # Skip call only if we have more than one BB
+                            yield [(addr_f, get_block_length(cfg, addr))]
                         for rec_path in find_path_recursive(cfg.nodes[addr]["data"].calls[0], rec_idx+1, is_outer=False):
                             yield [(addr_f, get_block_length(cfg, addr))] + rec_path
                 else:

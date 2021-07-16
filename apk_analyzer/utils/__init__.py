@@ -1,6 +1,7 @@
 import hashlib
 import re
 import io
+import os
 
 from elftools.elf.elffile import ELFFile
 from elftools.common.exceptions import ELFParseError
@@ -73,6 +74,13 @@ def check_malformed_elf(data):
 def check_if_jlong_as_cpp_obj(lib, offset, demangled_args):
     a = NativeJLongAnalyzer(lib)
     return a.check_cpp_obj(offset, demangled_args)
+
+def iterate_files(path, recursive=False):
+    for subdir, dirs, files in os.walk(path):
+        for file in files:
+            yield os.path.join(subdir, file)
+        if not recursive:
+            break
 
 def LCSubStr(X, Y):
     # Create a table to store lengths of

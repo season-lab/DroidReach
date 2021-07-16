@@ -13,7 +13,7 @@ from collections import namedtuple
 from androguard.misc import AnalyzeAPK
 from .JavaNameDemangler import JavaNameDemangler, FailedDemanglingError
 from .NativeLibAnalyzer import NativeLibAnalyzer
-from .utils import md5_hash, get_native_methods, check_if_jlong_as_cpp_obj, check_malformed_elf, LCSubStr
+from .utils import md5_hash, get_native_methods, check_if_jlong_as_cpp_obj, check_malformed_elf, LCSubStr, iterate_files
 from .utils.app_component import AppComponent
 from .utils.path_engine import PathEngine, generate_paths
 from .utils.timeout_decorator import TimeoutError, timeout
@@ -51,7 +51,8 @@ class APKAnalyzer(object):
         if not os.path.exists(self.wdir):
             os.mkdir(self.wdir)
 
-        copyfile(self.apk_path, os.path.join(self.wdir, os.path.basename(self.apk_path)))
+        if not os.path.exists(os.path.join(self.wdir, os.path.basename(self.apk_path))):
+            copyfile(self.apk_path, os.path.join(self.wdir, os.path.basename(self.apk_path)))
 
     def __init__(self, apk_path):
         if not os.path.exists(apk_path):
@@ -63,7 +64,7 @@ class APKAnalyzer(object):
         self.apk_name = os.path.basename(self.apk_path).replace(".apk", "")
         self.apk_hash = md5_hash(self.apk_path)
         self.wdir = os.path.join(APKAnalyzer.tmp_dir, self.apk_hash)
-        self.apk, self.dvm, self.analysis = AnalyzeAPK(apk_path)
+        self.apk, self.dvm, self.analysis = None, None, None
 
         self.callgraph_filename = os.path.join(self.wdir, "callgraph.gml")
         self.callgraph = None
@@ -72,7 +73,7 @@ class APKAnalyzer(object):
         self.lib_dep_graph = None
         self._create_dirs()
 
-        self.package_name = self.apk.get_package()
+        self.package_name = None
         self._jvm_demangler = JavaNameDemangler()
         self._native_libs = None
         self._native_lib_analysis = None
@@ -80,6 +81,12 @@ class APKAnalyzer(object):
         self._native_methods_reachable = None
 
         APKAnalyzer.log.info("APKAnalyzer initialization done")
+
+    def _lazy_apk_init(self):
+        if self.apk is not None:
+            return
+        self.apk, self.dvm, self.analysis = AnalyzeAPK(self.apk_path)
+        self.package_name = self.apk.get_package()
 
     def get_callgraph(self):
         if self.callgraph is not None:
@@ -101,6 +108,8 @@ class APKAnalyzer(object):
     def get_paths_to_native(self):
         if self.paths is not None:
             return self.paths
+
+        self._lazy_apk_init()
 
         APKAnalyzer.log.info("generating paths to native functions")
         if os.path.exists(self.paths_json_filename):
@@ -155,6 +164,15 @@ class APKAnalyzer(object):
             return self._native_libs
 
         self._native_libs = list()
+
+        if os.path.exists(os.path.join(self.wdir, "libs_analyzed")):
+            for f in iterate_files(self.wdir, recursive=True):
+                if not f.endswith(".so"):
+                    continue
+                self._native_libs.append(f)
+            return self._native_libs
+
+        self._lazy_apk_init()
         for f in self.apk.get_files():
             # Include libs in non-standard locations (this may introduce bugs later on, lets keep an eye on it)
             if f.startswith("lib/") or f.endswith(".so"):
@@ -177,6 +195,8 @@ class APKAnalyzer(object):
                         fout.write(raw_data)
 
                 self._native_libs.append(lib_full_path)
+
+        open(os.path.join(self.wdir, "libs_analyzed"), "w").close()
         return self._native_libs
 
     def build_lib_dependency_graph(self):
@@ -331,6 +351,19 @@ class APKAnalyzer(object):
         if self._native_methods is not None:
             return self._native_methods
 
+        if os.path.exists(os.path.join(self.wdir, "native_methods.txt")):
+            self._native_methods = list()
+            with open(os.path.join(self.wdir, "native_methods.txt"), "r") as fin:
+                for line in fin:
+                    line = line.strip()
+                    if line == "":
+                        continue
+                    class_name, native_name, args_str = line.split(" @@@ ")
+                    self._native_methods.append((class_name, native_name, args_str))
+            return self._native_methods
+
+        self._lazy_apk_init()
+
         native_signatures = get_native_methods(self.analysis, public_only=False)
         native_names = list(map(
             lambda x: x.split(";->")[1].split("(")[0],
@@ -343,6 +376,11 @@ class APKAnalyzer(object):
             native_signatures))
 
         self._native_methods = list(zip(class_names, native_names, args_strings))
+
+        with open(os.path.join(self.wdir, "native_methods.txt"), "w") as fout:
+            for class_name, native_name, args_str in self._native_methods:
+                fout.write("%s @@@ %s @@@ %s\n" % (class_name, native_name, args_str))
+
         return self._native_methods
 
     def find_reachable_native_methods(self):
