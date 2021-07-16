@@ -483,7 +483,9 @@ class APKAnalyzer(object):
         engine    = PathEngine(angr_proj, monitor_target=checkTaintedCall)
 
         offset -= offset % 2
+        CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
         _ = cex_proj.get_callgraph(offset)
+        CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = False
 
         max_time = 60 * 5
         start    = time.time()
@@ -507,6 +509,7 @@ class APKAnalyzer(object):
             if time.time() - start > max_time:
                 break
 
+        CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
         return list(set(map(lambda s: int(s.split("_")[1]), tainted_calls)))
 
     def jlong_as_cpp_obj(self, native_method: NativeMethod, use_angr=False):

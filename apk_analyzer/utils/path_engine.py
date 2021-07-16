@@ -257,6 +257,27 @@ def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indir
                 else:
                     yield [(addr_f, get_block_length(cfg, addr))]
 
+            if is_outer:
+                # all simple paths at least one time
+                max_paths = 20
+                for i, path in enumerate(nx.all_simple_paths(cfg, addr, ret_bb)):
+                    only_fun_path = list()
+                    if i > max_paths:
+                        break
+                    for bb in path:
+                        if len(cfg.nodes[bb]["data"].calls) > 0:
+                            target = cfg.nodes[bb]["data"].calls[0]
+                            if engine.has_model(target):
+                                # We want this
+                                only_fun_path.append((target, 0))
+                        orig_bb = bb
+                        if cfg.nodes[bb]["data"].is_thumb:
+                            bb += 1
+
+                        only_fun_path.append( (bb, get_block_length(cfg, orig_bb)) )
+
+                    yield only_fun_path
+
             for path in nx.all_simple_paths(cfg, addr, ret_bb):
                 complete_path       = list()
                 rec_paths_iterators = list()
@@ -320,7 +341,9 @@ def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indir
         if only_with_indirect_call:
             has_indirect_call = False
             for addr, _ in p:
+                addr = addr & 0xfffffffe
                 if addr not in block_data_cache:
+                    print("eieiei")
                     continue
                 data = block_data_cache[addr]
                 for insn in data.insns:

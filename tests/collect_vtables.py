@@ -74,6 +74,7 @@ if __name__ == "__main__":
         if not use_angr:
             cache_ghidra_analysis(consumer.libpath, consumer.offset)
 
+        print("[INFO] analyzing libpath %s; offset %#x; name %s; args %s" % (consumer.libpath, consumer.offset, consumer.method_name, str(args)))
         start   = time.time()
         args    = apka.jlong_as_cpp_obj(consumer, use_angr=use_angr)
         elapsed = time.time() - start
