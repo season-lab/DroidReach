@@ -139,12 +139,19 @@ def _find_path_to(apka, what, libs=None, reachable=False):
         if rebased_off not in cg.nodes:
             print("[!] No path (addr not in callgraph)")
         elif nx.has_path(cg, src_addr, rebased_off):
+            path_to_java = apka.get_path_to_native_method(method)
             print("[+] Path found:")
+            if path_to_java is not None:
+                for j in path_to_java:
+                    print(" -> %s" % j)
+            else:
+                print(" -> %s %s" % (method.class_name, method.method_name))
             p = nx.shortest_path(cg, src_addr, rebased_off)
-            print(" -> %s %s" % (method.class_name, method.method_name))
             for v in p:
-                data = cg.nodes[v]["data"]
-                print(" -> %s @ %#x" % (data.name, v))
+                data  = cg.nodes[v]["data"]
+                binfo = proj.get_bin_containing(v)
+                assert binfo is not None
+                print(" -> %s @ %s+%#x" % (data.name, binfo.name, v - binfo.min_addr))
             break
         else:
             print("[!] No path (callgraph)")

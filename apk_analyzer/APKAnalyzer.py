@@ -109,14 +109,14 @@ class APKAnalyzer(object):
         if self.paths is not None:
             return self.paths
 
-        self._lazy_apk_init()
-
         APKAnalyzer.log.info("generating paths to native functions")
         if os.path.exists(self.paths_json_filename):
             with open(self.paths_json_filename, "r") as fin:
                 self.paths = json.load(fin)
             APKAnalyzer.log.info("found cached")
             return self.paths
+
+        self._lazy_apk_init()
         self.get_callgraph()
 
         acts  = AppComponent('a', self.apk.get_activities())
@@ -401,6 +401,20 @@ class APKAnalyzer(object):
 
         self._native_methods_reachable = list(zip(class_names, native_names, args_strings))
         return self._native_methods_reachable
+
+    def get_path_to_native_method(self, method):
+        paths_result = self.get_paths_to_native()
+        for n in paths_result["paths"]:
+            native_name = n.split(";->")[1].split("(")[0]
+            class_name  = "L" + n.split(" L")[1].split(";->")[0] + ";"
+            if class_name == method.class_name and native_name == method.method_name:
+                java_path = list()
+                for j in paths_result["paths"][n]:
+                    native_name = j.split(";->")[1].split("(")[0]
+                    class_name  = "L" + j.split(" L")[1].split(";->")[0] + ";"
+                    java_path.append(class_name + " " + native_name)
+                return java_path
+        return None
 
     def find_native_methods_implementations(self, lib_whitelist=None, reachable=False):
         # Among all the native methods detected in Java, return the subset
