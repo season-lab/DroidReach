@@ -446,6 +446,7 @@ class APKAnalyzer(object):
 
         return res
 
+    @timeout(60*30) # Just a double check
     def _check_if_jlong_as_cpp_obj_pexe(self, libpath, offset, args):
         def mk_cpp_obj(state, param_i):
             n_entries_cpp = 50

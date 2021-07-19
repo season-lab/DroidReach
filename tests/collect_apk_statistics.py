@@ -97,7 +97,7 @@ if __name__ == "__main__":
         if len(functions) == 0:
             print(datetime.now(), "using rizin backup")
             n_native_instructions += backup_native_code_counter(armv7_lib.libpath)
-        clear_cex_cache(ghidra)
+        # clear_cex_cache(ghidra)
 
     print(datetime.now(), "n native instructions:", n_native_instructions)
 
