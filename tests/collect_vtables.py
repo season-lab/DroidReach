@@ -17,6 +17,7 @@ offsets_per_lib = dict()
 processed_libs  = set()
 def cache_ghidra_analysis(libpath, off):
     if libpath not in processed_libs:
+        print("[GHIDRA_CG] caching for %s @ %#f" % (libpath, off))
         processed_libs.add(libpath)
         start = time.time()
         ghidra.define_functions(libpath, offsets_per_lib[libpath])
@@ -85,6 +86,7 @@ if __name__ == "__main__":
             maybe_producers = apka.find_potential_producers(consumer, lib_whitelist=arm_hashes)
             print("[INFO] found %d potential producers" % len(maybe_producers))
 
+            max_producers = MAX_PRODUCERS
             i = 0
             for producer in maybe_producers:
                 if len(found_vtables) > 0:
@@ -97,7 +99,11 @@ if __name__ == "__main__":
                     found_vtables |= processed_producers[producer]
                     continue
 
-                if i > MAX_PRODUCERS:
+                if producer.class_name != consumer.class_name:
+                    # relaxed heuristic, reduce max_producers
+                    max_producers = MAX_PRODUCERS // 3
+
+                if i > max_producers:
                     print("[INFO] given up for cosumer @ %#x" % consumer.offset)
                     break
                 i += 1

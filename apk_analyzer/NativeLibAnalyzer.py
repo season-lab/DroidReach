@@ -320,9 +320,12 @@ class NativeLibAnalyzer(object):
         angr_proj = angr.Project(self.libpath, auto_load_libs=False)
         engine    = PathEngine(angr_proj)
 
+        start = time.time()
+        print("[INFO] building callgraph in _get_returned_vtable_path_executor...")
         CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
         _ = cex_proj.get_callgraph(offset)
         CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = False
+        print("[INFO] callgraph OK (%f)" % (time.time() - start))
 
         found_vals = set()
 
