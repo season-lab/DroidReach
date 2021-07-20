@@ -283,7 +283,7 @@ class NativeLibAnalyzer(object):
             if len(smgr.active) > MAXSTATES:
                 # Try to limit RAM usage
                 break
-            if time.time() > max_time:
+            if time.time() - start > max_time:
                 # Try to limit time
                 break
 

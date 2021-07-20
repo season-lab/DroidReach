@@ -365,7 +365,7 @@ def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indir
             for addr, _ in p:
                 addr = addr & 0xfffffffe
                 if addr not in block_data_cache:
-                    print("eieiei")
+                    # print("eieiei")
                     continue
                 data = block_data_cache[addr]
                 for insn in data.insns:
