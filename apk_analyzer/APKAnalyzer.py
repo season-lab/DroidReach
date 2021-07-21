@@ -429,20 +429,22 @@ class APKAnalyzer(object):
         else:
             methods = self.find_native_methods()
 
+        added_methods = set()
         for class_name, method_name, args_str in methods:
             native_impls = self.find_native_implementations(method_name, class_name, args_str, lib_whitelist)
             if len(native_impls) == 0:
                 continue
 
             for n in native_impls:
-                if "libbzmedia_less.so" in n.analyzer.libpath:
-                    continue
                 native_impl = n
+                if (native_impl.analyzer.libpath, native_impl.offset) in added_methods:
+                    continue
+                added_methods.add((native_impl.analyzer.libpath, native_impl.offset))
 
-            res.append(
-                NativeMethod(
-                    class_name, method_name, args_str, native_impl.analyzer.libpath, native_impl.analyzer.libhash, native_impl.offset)
-            )
+                res.append(
+                    NativeMethod(
+                        class_name, method_name, args_str, native_impl.analyzer.libpath, native_impl.analyzer.libhash, native_impl.offset)
+                )
 
         return res
 
