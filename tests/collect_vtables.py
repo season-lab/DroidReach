@@ -17,7 +17,7 @@ offsets_per_lib = dict()
 processed_libs  = set()
 def cache_ghidra_analysis(libpath, off):
     if libpath not in processed_libs:
-        print("[GHIDRA_CG] caching for %s @ %#f" % (libpath, off))
+        print("[GHIDRA_CG] caching for %s @ %#x" % (libpath, off))
         processed_libs.add(libpath)
         start = time.time()
         ghidra.define_functions(libpath, offsets_per_lib[libpath])
