@@ -64,7 +64,7 @@ if __name__ == "__main__":
             callsite   = int(callsite.split(" ")[-1].replace(">", ""), 16)
             vtable_off = int(target.split("_")[4])
 
-            vcalls[libpath, offset] = (callsite, vtable_off)
+            vcalls[libpath, offset] = (callsite & 0xfffffffe, vtable_off)
 
         if line.startswith("[MAPPING_PRODUCER_CONSUMER] "):
             # [MAPPING_PRODUCER_CONSUMER] libpath_consumer /dev/shm/apk_analyzer_data/b64726fee78fa5f448c1f242677b5942/lib/armeabi-v7a/libtwitchsdk.so; offset_consumer 0x63d74c; name_consumer Initialize; libpath_producer /dev/shm/apk_analyzer_data/b64726fee78fa5f448c1f242677b5942/lib/armeabi-v7a/libtwitchsdk.so; offset_producer 0x63d088; name_producer CreateNativeInstance; n_vtables 1; vtables 0x87ec4c
@@ -109,14 +109,17 @@ if __name__ == "__main__":
 
             if dst is not None:
                 # AAA fix me, off should be the src function, I only have the callsite (must be logged probably)
-                additional_cg_edges = [(off, dst, off)]
+                additional_cg_edges = [(off, dst & 0xfffffffe, off)]
             else:
                 additional_cg_edges = None
 
+            if additional_cg_edges is not None:
+                print("[INFO] additional edge: (%#x, %#x, %#x)" % additional_cg_edges[0])
+
             start = time.time()
             if dst is not None:
-                # define vcall target
-                ghidra.define_functions(main_lib, [dst & 0xfffffffe])
+                # define vcall target and off
+                ghidra.define_functions(main_lib, [off, dst & 0xfffffffe])
             icfg    = proj.get_icfg(off, additional_cg_edges=additional_cg_edges)
             elapsed = time.time() - start
             n_nodes = len(icfg.nodes)

@@ -210,7 +210,7 @@ if __name__=="__main__":
     parser.add_argument("--print-native-functions", help="Print native functions", action="store_true")
     parser.add_argument("--check-consumer", help="Check if the method is a consumer", nargs="?")
     parser.add_argument("--find-producer", help="Look for a producer given a consumer", nargs="?")
-    parser.add_argument("--find-vtable", help="Look the returned vtable from a producer", nargs="?")
+    parser.add_argument("--find-vtable", help="Find the returned vtable of a producer", nargs="?")
     parser.add_argument("--reachable", help="Analyze only reachable functions", action="store_true")
     parser.add_argument("--all-archs", help="Analyze all archs (not only armv7) [Experimental]", action="store_true")
     parser.add_argument("--find-path-to", metavar="libpath.so@offset", help="Find path to native function", nargs="?")
