@@ -106,6 +106,7 @@ if __name__ == "__main__":
 
             proj = CEXProject(libpath, libs=other_libs, plugins=["Ghidra", "AngrEmulated"])
             angr_emu.set_state_constructor(off, constructor)
+            angr_emu.use_timeout_for_cfg = True
 
             if dst is not None:
                 # AAA fix me, off should be the src function, I only have the callsite (must be logged probably)
