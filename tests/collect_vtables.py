@@ -5,6 +5,7 @@ import os
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from apk_analyzer import APKAnalyzer
 from cex_src.cex import CEXProject
+from apk_analyzer.utils.timeout_decorator import timeout, TimeoutError
 
 MAX_PRODUCERS = 10
 
@@ -15,6 +16,7 @@ def usage():
 
 offsets_per_lib = dict()
 processed_libs  = set()
+@timeout(60*40)
 def cache_ghidra_analysis(libpath, off):
     if libpath not in processed_libs:
         print("[GHIDRA_CG] caching for %s @ %#x" % (libpath, off))
@@ -73,7 +75,11 @@ if __name__ == "__main__":
 
         # cache CFG
         if not use_angr:
-            cache_ghidra_analysis(consumer.libpath, consumer.offset)
+            try:
+                cache_ghidra_analysis(consumer.libpath, consumer.offset)
+            except TimeoutError:
+                print("[ERR] Ghidra analysis in timeout (consumer) on %s @ %#x" % (consumer.libpath, consumer.offset))
+                continue
 
         print("[INFO] analyzing libpath %s; offset %#x; name %s" % (consumer.libpath, consumer.offset, consumer.method_name))
         start   = time.time()
@@ -109,7 +115,11 @@ if __name__ == "__main__":
                 i += 1
 
                 if not use_angr:
-                    cache_ghidra_analysis(producer.libpath, producer.offset)
+                    try:
+                        cache_ghidra_analysis(producer.libpath, producer.offset)
+                    except TimeoutError:
+                        print("[ERR] Ghidra analysis in timeout (producer) on %s @ %#x" % (producer.libpath, producer.offset))
+                        continue
 
                 start   = time.time()
                 vtable  = apka.vtable_from_jlong_ret(producer, use_angr=use_angr)
