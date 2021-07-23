@@ -334,7 +334,7 @@ class NativeLibAnalyzer(object):
         for p in generate_paths(cex_proj, engine, offset, only_with_new=True):
             addrs = list()
             for addr, _ in p:
-                addrs.append(addr)
+                addrs.append(addr & 0xfffffffe)
 
             opts = {
                 angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY,
@@ -345,6 +345,7 @@ class NativeLibAnalyzer(object):
             state = angr_proj.factory.blank_state(
                 add_options=opts
             )
+            state.regs.r2 = state.heap.allocate(256)
 
             ret_state = engine.process_path(state, p)
             if ret_state.regs.r0.args[0] != 0 and ret_state.mem[ret_state.regs.r0].uint32_t.resolved.args[0] > 0x400000:

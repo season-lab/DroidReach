@@ -11,6 +11,7 @@ class VEXEarlyExit(Exception):
     pass
 
 class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
+    DBG_MODE     = False
     symbol_cache = dict()
 
     def __init__(self, *args, monitor_target=None, **xargs):
@@ -82,13 +83,16 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
             while 1:
                 block.vex # It will shrink the block size according to VEX (dont remove it!)
                 block_size = block.size
-                if block_size == 0:
+                if block_size == 0 and not self.has_model(block.vex.addr):
                     break
-                # print("processing block:")
-                # block.vex.pp()
-                # block.pp()
-                # print(block_size, hex(bb), size, proc_size, self.state.regs.r4)
-                # input("> click a key...")
+                if PathEngine.DBG_MODE:
+                    print("processing block:")
+                    block.vex.pp()
+                    block.pp()
+                    print(block_size, hex(bb), size, proc_size)
+                    v = input("> press \"i\" for interactive mode, another key to continue...")
+                    if v == "i":
+                        import IPython; IPython.embed()
 
                 self._process_block(block.vex)
                 proc_size += block_size
@@ -186,7 +190,7 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
             claripy.BVV(self.state.heap.allocate(size),
             self.project.arch.bits))
 
-MAX_DEPTH             = 10
+MAX_DEPTH             = 5
 MAX_PATH_PER_FUNCTION = 10
 
 def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indirect_call=False):
@@ -296,6 +300,7 @@ def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indir
 
                     yield only_fun_path
 
+            paths = list()
             for path in nx.all_simple_paths(cfg, addr, ret_bb):
                 complete_path       = list()
                 rec_paths_iterators = list()
@@ -312,6 +317,9 @@ def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indir
                         else:
                             rec_paths_iterators.append(
                                 compose_with_empty(find_path_recursive(cfg.nodes[bb]["data"].calls[0], rec_idx+1, is_outer=False)))
+                if is_outer:
+                    paths.append((path, mix(*rec_paths_iterators)))
+                    continue
 
                 # mix the elements and take some paths. This should be the cartesian product
                 # we are pruning some path
@@ -331,6 +339,34 @@ def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indir
 
                     yield complete_path
                     complete_path = list()
+
+            if is_outer:
+                i = 0
+                stopped_iter = set()
+                while len(stopped_iter) < len(paths):
+                    path, rec_iter = paths[i]
+                    try:
+                        rec_paths = next(rec_iter)
+                    except StopIteration:
+                        stopped_iter.add(i)
+                        continue
+
+                    j = 0
+                    complete_path = list()
+                    for bb in path:
+                        orig_bb = bb
+                        if cfg.nodes[bb]["data"].is_thumb:
+                            bb += 1
+
+                        complete_path.append((bb, get_block_length(cfg, orig_bb)))
+                        if len(cfg.nodes[orig_bb]["data"].calls) > 0:
+                            if engine.to_skip(cfg.nodes[orig_bb]["data"].calls[0]):
+                                continue
+                            complete_path += rec_paths[j]
+                            j += 1
+
+                    yield complete_path
+                    i = (i + 1) % len(paths)
 
     def is_indirect_branch(insn):
         indirect_branch_strings = {
