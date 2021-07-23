@@ -74,6 +74,8 @@ def _find_vtable(apka, producer, libs=None, reachable=False):
     class_name  = "L" + "/".join(producer.split(".")[:-1]) + ";"
     method_name = producer.split(".")[-1]
 
+    angr_emu = CEXProject.pm.get_plugin_by_name("AngrEmulated")
+
     producer_impl = None
     for method in apka.find_native_methods_implementations(libs, reachable):
         if method.class_name == class_name and method.method_name == method_name:
@@ -86,6 +88,7 @@ def _find_vtable(apka, producer, libs=None, reachable=False):
 
     print(producer_impl)
     print("[+] Finding vtable for producer", producer, "@", hex(producer_impl.offset))
+    angr_emu.use_timeout_for_cfg = True
     vtable = apka.vtable_from_jlong_ret(producer_impl, use_angr=False)
     if vtable is not None:
         print("[!] vtable:", hex(vtable))
