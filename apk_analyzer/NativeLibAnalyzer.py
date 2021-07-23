@@ -331,7 +331,7 @@ class NativeLibAnalyzer(object):
 
         max_time = 60*5
         start    = time.time()
-        for p in generate_paths(cex_proj, engine, offset, only_with_new=True):
+        for p in generate_paths(cex_proj, engine, offset, only_with_new=True, max_time=start + max_time):
             addrs = list()
             for addr, _ in p:
                 addrs.append(addr & 0xfffffffe)

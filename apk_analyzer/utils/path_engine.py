@@ -1,6 +1,7 @@
 from cex_src.cex.project import CEXProject
 import networkx as nx
 import claripy
+import time
 import sys
 
 from angr.engines.vex.heavy.heavy import SimStateStorageMixin, VEXMixin, VEXLifter
@@ -190,10 +191,10 @@ class PathEngine(ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
             claripy.BVV(self.state.heap.allocate(size),
             self.project.arch.bits))
 
-MAX_DEPTH             = 5
+MAX_DEPTH             = 10
 MAX_PATH_PER_FUNCTION = 10
 
-def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indirect_call=False):
+def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indirect_call=False, max_time=None):
     block_data_cache = dict()
     cg = cex_proj.get_callgraph(entry)
 
@@ -349,6 +350,7 @@ def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indir
                         rec_paths = next(rec_iter)
                     except StopIteration:
                         stopped_iter.add(i)
+                        i = (i + 1) % len(paths)
                         continue
 
                     j = 0
@@ -388,6 +390,9 @@ def generate_paths(cex_proj, engine, entry, only_with_new=False, only_with_indir
         return False
 
     for p in find_path_recursive(entry):
+        if max_time is not None and time.time() > max_time:
+            break
+
         if only_with_new:
             has_new = False
             for addr, _ in p:

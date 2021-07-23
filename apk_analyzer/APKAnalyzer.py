@@ -510,7 +510,7 @@ class APKAnalyzer(object):
 
         max_time = 60 * 5
         start    = time.time()
-        for p in generate_paths(cex_proj, engine, offset, only_with_indirect_call=True):
+        for p in generate_paths(cex_proj, engine, offset, only_with_indirect_call=True, max_time=start + max_time):
             tainted_calls.clear()
             opts = {
                 angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY,
@@ -584,13 +584,13 @@ class APKAnalyzer(object):
 
             # Prefer methods with these tokens
             name_score = sys.maxsize
-            tokens = ["getinstance", "builder", "new", "ctor"]
+            tokens = ["getinstance", "builder", "newentry", "new", "ctor"]
             for i, token in enumerate(tokens):
                 if token in x.method_name.lower():
                     name_score = i
                     break
 
-            return lib_score, name_score, common_substring_score
+            return lib_score, name_score + common_substring_score
 
         potential_producers = self.methods_jlong_ret_for_class(consumer.class_name, lib_whitelist=lib_whitelist, reachable=reachable)
         potential_producers = sorted(potential_producers, key=_sort_heuristic)
