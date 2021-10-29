@@ -250,15 +250,26 @@ class APKAnalyzer(object):
         return list(self._native_lib_analysis.values())
 
     def get_armv7_libs(self):
-        added_libs = set()
+        added_libs = dict()
         arm_libs   = list()
         libs       = self.get_analyzed_libs()
         for lib in libs:
             if lib.arch in {"armeabi", "armeabi-v7a"}:
                 # Relaxed a little bit... If the library is not in a standard location, analyze it
                 if lib.libname in added_libs and ("lib/"+lib.arch) in lib.libpath:
-                    continue
-                added_libs.add(lib.libname)
+                    # Prefer "armeabi" over "armeabi-v7a" (just to have determinism)
+                    if added_libs[lib.libname] == "armeabi":
+                        continue
+                    else:
+                        # thus, delete the old lib from the list
+                        new_libs = list()
+                        for l in arm_libs:
+                            if l.libname == lib.libname:
+                                continue
+                            new_libs.append(l)
+                        arm_libs = new_libs
+
+                added_libs[lib.libname] = lib.arch
                 arm_libs.append(lib)
         return arm_libs
 
