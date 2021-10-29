@@ -679,7 +679,7 @@ class NativeLibAnalyzer(object):
         else:
             self._get_jni_functions_rizin_native()
 
-        if self.use_angr:
+        if len(self._jni_functions) == 0 or self.use_angr:
             found_methods = set()
             for m in self._jni_functions:
                 found_methods.add(m.method_name)
