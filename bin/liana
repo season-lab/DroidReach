@@ -97,7 +97,12 @@ def _find_vtable(apka, producer, libs=None, reachable=False):
 
 def _find_path_to(apka, what, libs=None, reachable=False):
     lib, offset = what.split("@")
-    offset = int(offset, 16)
+
+    try:
+        offset = int(offset, 16)
+    except:
+        name = offset
+        offset = None
 
     if libs is None:
         libs = apka.get_analyzed_libs()
@@ -106,12 +111,25 @@ def _find_path_to(apka, what, libs=None, reachable=False):
     lib_hashes = list(map(lambda l: l.libhash, libs))
 
     libhash = None
+    analyzed_lib = None
     for l in libs:
         if l.libname == lib:
             libhash = l.libhash
+            analyzed_lib = l
     if libhash is None:
         print("[!] Unable to find lib %s" % lib)
         return
+
+    if offset is None:
+        rz = analyzed_lib._open_rz()
+        rz.cmd("aa")
+        addr = rz.cmd("afl~%s[0]" % name).strip()
+
+        rz.quit()
+        if addr == "":
+            print("[!] Unable to find function %s" % name)
+            return
+        offset = int(addr, 16)
 
     print("[+] Looking for path to %s @ %#x" % (lib, offset))
 
@@ -216,7 +234,7 @@ if __name__=="__main__":
     parser.add_argument("--find-vtable", help="Find the returned vtable of a producer", nargs="?")
     parser.add_argument("--reachable", help="Analyze only reachable functions", action="store_true")
     parser.add_argument("--all-archs", help="Analyze all archs (not only armv7) [Experimental]", action="store_true")
-    parser.add_argument("--find-path-to", metavar="libpath.so@offset", help="Find path to native function", nargs="?")
+    parser.add_argument("--find-path-to", metavar="libpath.so@offset/name", help="Find path to native function", nargs="?")
     parser.add_argument("--show-lib-dep-graph", help="Print the library dependency graph in dot to stdout", action="store_true")
 
     parser.add_argument("apk", help="The binary to analyze")
