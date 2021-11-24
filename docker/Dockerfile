@@ -34,8 +34,11 @@ RUN cd /opt                                                      && \
 ENV GHIDRA_HOME=/opt/ghidra_9.2.3_PUBLIC
 ENV LD_LIBRARY_PATH=/usr/local/lib/x86_64-linux-gnu/
 
-RUN groupadd --gid 1000 ubuntu \
-    && useradd --uid 1000 --gid ubuntu --shell /bin/bash --create-home ubuntu
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
+RUN groupadd --gid ${GROUP_ID} ubuntu \
+    && useradd --uid ${USER_ID} --gid ubuntu --shell /bin/bash --create-home ubuntu
 RUN echo "ubuntu ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/ubuntu && \
     chmod 0440 /etc/sudoers.d/ubuntu
 
@@ -44,16 +47,16 @@ WORKDIR /home/ubuntu
 
 ENV PATH=$PATH:/home/ubuntu/.local/bin
 
+# Other dependencies
+RUN pip install networkx==2.5.1 \
+                yapsy           \
+                angr            \
+                rzpipe          \
+                pydot           \
+                pyyaml
+
 # Androguard
 RUN git clone https://github.com/androguard/androguard.git /tmp/androguard && \
     cd /tmp/androguard                                                     && \
     pip install .                                                          && \
     rm -rf /tmp/androguard
-
-# Other dependencies
-RUN pip install networkx \
-                yapsy    \
-                angr     \
-                rzpipe   \
-                pydot    \
-                pyyaml
