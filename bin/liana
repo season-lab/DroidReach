@@ -10,6 +10,8 @@ from apk_analyzer import APKAnalyzer
 from apk_analyzer.utils import md5_hash
 from cex_src.cex import CEXProject
 
+cex_project_cache = dict()
+
 def _print_native_functions(apka, libs=None, reachable=False):
     methods = None
     if reachable:
@@ -150,9 +152,13 @@ def _find_path_to(apka, what, libs=None, reachable=False):
         src_addr = method.offset & 0xfffffffe
 
         print("[+] Building the callgraph... ", end="")
-        proj = CEXProject(main_lib, other_libs, plugins=["Ghidra", "AngrEmulated"])
-        cg   = proj.get_callgraph(src_addr)
-        print("[+] OK (n_nodes: %d, n_edges: %d)" % (len(cg.nodes), len(cg.edges)))
+        if method.libhash in cex_project_cache:
+            proj = cex_project_cache[method.libhash]
+        else:
+            proj = CEXProject(main_lib, other_libs, plugins=["Ghidra", "AngrEmulated"])
+            cex_project_cache[method.libhash] = proj
+        cg = proj.get_callgraph(src_addr)
+        print(" OK (n_nodes: %d, n_edges: %d)" % (len(cg.nodes), len(cg.edges)))
 
         binfo       = proj.get_bininfo(lib)
         rebased_off = offset + binfo.min_addr
@@ -176,6 +182,19 @@ def _find_path_to(apka, what, libs=None, reachable=False):
             break
         else:
             print("[!] No path (callgraph)")
+
+def _find_path_to_csv(apka, file, libs=None, reachable=False):
+    fin = open(file, "r")
+    for line in fin:
+        line = line.strip()
+        if line == "":
+            continue
+
+        lib, offset = line.split(",")
+        lib = os.path.basename(lib)
+        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable)
+
+    fin.close()
 
 def _show_lib_dep_graph(apka):
     ldg = apka.build_lib_dependency_graph()
@@ -223,6 +242,9 @@ def main(args):
     if args.find_path_to is not None:
         _find_path_to(apka, args.find_path_to, libs, reachable_analysis)
 
+    if args.find_path_to_csv is not None:
+        _find_path_to_csv(apka, args.find_path_to_csv, libs, reachable_analysis)
+
     if args.show_lib_dep_graph:
         _show_lib_dep_graph(apka)
 
@@ -235,6 +257,7 @@ if __name__=="__main__":
     parser.add_argument("--reachable", help="Analyze only reachable functions", action="store_true")
     parser.add_argument("--all-archs", help="Analyze all archs (not only armv7) [Experimental]", action="store_true")
     parser.add_argument("--find-path-to", metavar="libpath.so@offset/name", help="Find path to native function", nargs="?")
+    parser.add_argument("--find-path-to-csv", metavar="file.csv", help="Find path to the native functions specified in the CSV (lib.so,offset)", nargs="?")
     parser.add_argument("--show-lib-dep-graph", help="Print the library dependency graph in dot to stdout", action="store_true")
 
     parser.add_argument("apk", help="The binary to analyze")
