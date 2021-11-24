@@ -50,13 +50,14 @@ ENV PATH=$PATH:/home/ubuntu/.local/bin
 # Other dependencies
 RUN pip install networkx==2.5.1 \
                 yapsy           \
-                angr            \
-                rzpipe          \
-                pydot           \
+                angr==9.0.8021  \
+                rzpipe==0.1.0   \
+                pydot==1.4.2    \
                 pyyaml
 
 # Androguard
 RUN git clone https://github.com/androguard/androguard.git /tmp/androguard && \
     cd /tmp/androguard                                                     && \
+    git checkout 8d091cbb309c0c50bf239f805cc1e0931b8dcddc                  && \
     pip install .                                                          && \
     rm -rf /tmp/androguard
