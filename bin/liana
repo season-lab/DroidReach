@@ -139,6 +139,9 @@ def _find_path_to(apka, what, libs=None, reachable=False):
     ldg = apka.build_lib_dependency_graph()
     print("OK")
 
+    angr_emu = CEXProject.pm.get_plugin_by_name("AngrEmulated")
+    angr_emu.use_timeout_for_cfg = True
+
     for method in apka.find_native_methods_implementations(lib_hashes, reachable):
         print("[+] Checking path from native method %s %s @ %s %#x" % \
             (method.class_name, method.method_name, method.libpath, method.offset))
