@@ -2,6 +2,7 @@
 
 import networkx as nx
 import argparse
+import time
 import sys
 import os
 
@@ -97,7 +98,7 @@ def _find_vtable(apka, producer, libs=None, reachable=False):
     else:
         print("[!] vtable not found")
 
-def _find_path_to(apka, what, libs=None, reachable=False):
+def _find_path_to(apka, what, libs=None, reachable=False, disable_angr=False, disable_ghidra=False):
     lib, offset = what.split("@")
 
     try:
@@ -136,11 +137,29 @@ def _find_path_to(apka, what, libs=None, reachable=False):
     print("[+] Looking for path to %s @ %#x" % (lib, offset))
 
     print("[+] Building library dependency graph... ", end="")
+    start = time.time()
     ldg = apka.build_lib_dependency_graph()
-    print("OK")
+    elapsed = time.time() - start
+    print("OK (%.03f s)" % elapsed)
 
     angr_emu = CEXProject.pm.get_plugin_by_name("AngrEmulated")
     angr_emu.use_timeout_for_cfg = True
+
+    ghidra = CEXProject.pm.get_plugin_by_name("Ghidra")
+
+    jni_methods = dict()
+    for method in apka.find_native_methods_implementations(lib_hashes, reachable):
+        if method.libpath not in jni_methods:
+            jni_methods[method.libpath] = list()
+        jni_methods[method.libpath].append(method.offset)
+
+    if not disable_ghidra:
+        print("[+] Defining JNI functions in Ghidra... ", end="")
+        start = time.time()
+        for jni_lib in jni_methods:
+            ghidra.define_functions(jni_lib, jni_methods[jni_lib])
+        elapsed = time.time() - start
+        print("OK (%.03f s)" % elapsed)
 
     for method in apka.find_native_methods_implementations(lib_hashes, reachable):
         print("[+] Checking path from native method %s %s @ %s %#x" % \
@@ -155,13 +174,21 @@ def _find_path_to(apka, what, libs=None, reachable=False):
         src_addr = method.offset & 0xfffffffe
 
         print("[+] Building the callgraph... ", end="")
+        plugins = []
+        if not disable_ghidra:
+            plugins.append("Ghidra")
+        if not disable_angr:
+            plugins.append("AngrEmulated")
+
         if method.libhash in cex_project_cache:
             proj = cex_project_cache[method.libhash]
         else:
-            proj = CEXProject(main_lib, other_libs, plugins=["Ghidra", "AngrEmulated"])
+            proj = CEXProject(main_lib, other_libs, plugins=plugins)
             cex_project_cache[method.libhash] = proj
+        start = time.time()
         cg = proj.get_callgraph(src_addr)
-        print(" OK (n_nodes: %d, n_edges: %d)" % (len(cg.nodes), len(cg.edges)))
+        elapsed = time.time() - start
+        print(" OK (n_nodes: %d, n_edges: %d, elapsed: %.03f s)" % (len(cg.nodes), len(cg.edges), elapsed))
 
         binfo       = proj.get_bininfo(lib)
         rebased_off = offset + binfo.min_addr
@@ -186,7 +213,7 @@ def _find_path_to(apka, what, libs=None, reachable=False):
         else:
             print("[!] No path (callgraph)")
 
-def _find_path_to_csv(apka, file, libs=None, reachable=False):
+def _find_path_to_csv(apka, file, libs=None, reachable=False, disable_angr=False, disable_ghidra=False):
     fin = open(file, "r")
     for line in fin:
         line = line.strip()
@@ -195,7 +222,7 @@ def _find_path_to_csv(apka, file, libs=None, reachable=False):
 
         lib, offset = line.split(",")
         lib = os.path.basename(lib)
-        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable)
+        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_angr, disable_ghidra)
 
     fin.close()
 
@@ -224,11 +251,22 @@ def main(args):
     apka = APKAnalyzer(apk_path)
     reachable_analysis = False
     libs               = None
+    disable_angr       = False
+    disable_ghidra     = False
+
     if args.reachable:
         reachable_analysis = True
     if not args.all_archs:
         libs = apka.get_armv7_libs()
         libs = list(map(lambda l: l.libhash, libs))
+    if args.disable_angr:
+        disable_angr = True
+    if args.disable_ghidra:
+        disable_ghidra = True
+
+    if disable_ghidra and disable_angr:
+        sys.stderr.write("!Err: you cannot disable both Angr and Ghidra")
+        return 1
 
     if args.print_native_functions:
         _print_native_functions(apka, libs, reachable_analysis)
@@ -243,13 +281,15 @@ def main(args):
         _find_vtable(apka, args.find_vtable, libs, reachable_analysis)
 
     if args.find_path_to is not None:
-        _find_path_to(apka, args.find_path_to, libs, reachable_analysis)
+        _find_path_to(apka, args.find_path_to, libs, reachable_analysis, disable_angr, disable_ghidra)
 
     if args.find_path_to_csv is not None:
-        _find_path_to_csv(apka, args.find_path_to_csv, libs, reachable_analysis)
+        _find_path_to_csv(apka, args.find_path_to_csv, libs, reachable_analysis, disable_angr, disable_ghidra)
 
     if args.show_lib_dep_graph:
         _show_lib_dep_graph(apka)
+
+    return 0
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Liana APK analyzer')
@@ -258,6 +298,8 @@ if __name__=="__main__":
     parser.add_argument("--find-producer", help="Look for a producer given a consumer", nargs="?")
     parser.add_argument("--find-vtable", help="Find the returned vtable of a producer", nargs="?")
     parser.add_argument("--reachable", help="Analyze only reachable functions", action="store_true")
+    parser.add_argument("--disable-angr", help="Disable Angr plugin", action="store_true")
+    parser.add_argument("--disable-ghidra", help="Disable Ghidra plugin", action="store_true")
     parser.add_argument("--all-archs", help="Analyze all archs (not only armv7) [Experimental]", action="store_true")
     parser.add_argument("--find-path-to", metavar="libpath.so@offset/name", help="Find path to native function", nargs="?")
     parser.add_argument("--find-path-to-csv", metavar="file.csv", help="Find path to the native functions specified in the CSV (lib.so,offset)", nargs="?")
@@ -266,5 +308,4 @@ if __name__=="__main__":
     parser.add_argument("apk", help="The binary to analyze")
 
     args = parser.parse_args()
-
     exit(main(args))

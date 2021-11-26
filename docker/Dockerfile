@@ -45,6 +45,7 @@ RUN echo "ubuntu ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/ubuntu && \
 USER    ubuntu
 WORKDIR /home/ubuntu
 
+ENV PYTHONUNBUFFERED=1
 ENV PATH=$PATH:/home/ubuntu/.local/bin
 
 # Other dependencies
