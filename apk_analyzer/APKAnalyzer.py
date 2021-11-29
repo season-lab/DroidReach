@@ -13,7 +13,7 @@ from collections import namedtuple
 from androguard.misc import AnalyzeAPK
 from .JavaNameDemangler import JavaNameDemangler, FailedDemanglingError
 from .NativeLibAnalyzer import NativeLibAnalyzer
-from .utils import md5_hash, get_native_methods, check_if_jlong_as_cpp_obj, check_malformed_elf, LCSubStr, iterate_files
+from .utils import md5_hash, connected_nodes, get_native_methods, get_static_constructors_map, check_if_jlong_as_cpp_obj, check_malformed_elf, LCSubStr, iterate_files
 from .utils.app_component import AppComponent
 from .utils.path_engine import PathEngine, generate_paths
 from .utils.timeout_decorator import TimeoutError, timeout
@@ -123,11 +123,24 @@ class APKAnalyzer(object):
         provs = AppComponent('p', self.apk.get_providers())
         recvs = AppComponent('r', self.apk.get_receivers())
         servs = AppComponent('s', self.apk.get_services())
+        static_constructors = get_static_constructors_map(self.callgraph.nodes)
 
         components = [acts, provs, recvs, servs]
         sources = list()
         for comp in components:
             sources.extend(comp.get_sources(self.callgraph.nodes))
+
+        connected_subgraph = self.callgraph.subgraph(connected_nodes(self.callgraph, sources))
+        added_class = set()
+        for node in connected_subgraph.nodes:
+            node_str = str(node)
+            method_signature = node_str.split(" ")[1]
+            class_name = class_name = method_signature.split("->")[0]
+            if class_name in added_class:
+                continue
+            added_class.add(class_name)
+            if class_name in static_constructors:
+                sources.append(static_constructors[class_name])
 
         # get all targets
         native_targets = get_native_methods(self.analysis,

@@ -58,6 +58,17 @@ def get_native_methods(dx: Analysis, public_only: bool = False):
             res.append(m)
     return res
 
+def get_static_constructors_map(nodes: NodeView):
+    res = dict()
+    for node in nodes:
+        node_str = str(node)
+        method_signature = node_str.split(" ")[1]
+        class_name = method_signature.split("->")[0]
+        method_name = method_signature.split("->")[1].split("(")[0]
+        if method_name == "<clinit>":
+            res[class_name] = node_str
+    return res
+
 def md5_hash(f):
     with open(f,'rb') as f_binary:
         md5 = hashlib.md5(f_binary.read()).hexdigest()
@@ -114,3 +125,26 @@ def LCSubStr(X, Y):
             else:
                 LCSuff[i][j] = 0
     return result
+
+def connected_nodes(G, sources=list, depth_limit=None):
+    nodes = list(sources)
+    visited = set()
+    if depth_limit is None:
+        depth_limit = len(G)
+    for start in nodes:
+        if start in visited:
+            continue
+        yield start
+        visited.add(start)
+        stack = [(start, depth_limit, iter(G[start]))]
+        while stack:
+            parent, depth_now, children = stack[-1]
+            try:
+                child = next(children)
+                if child not in visited:
+                    yield child
+                    visited.add(child)
+                    if depth_now > 1:
+                        stack.append((child, depth_now - 1, iter(G[child])))
+            except StopIteration:
+                stack.pop()
