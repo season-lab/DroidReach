@@ -67,6 +67,7 @@ class APKAnalyzer(object):
         self.apk, self.dvm, self.analysis = None, None, None
 
         self.callgraph_filename = os.path.join(self.wdir, "callgraph.gml")
+        self.pruned_callgraph_filename = os.path.join(self.wdir, "pruned_callgraph.gml")
         self.callgraph = None
         self.paths_json_filename = os.path.join(self.wdir, "paths.json")
         self.paths = None
@@ -130,7 +131,9 @@ class APKAnalyzer(object):
         for comp in components:
             sources.extend(comp.get_sources(self.callgraph.nodes))
 
-        connected_subgraph = self.callgraph.subgraph(connected_nodes(self.callgraph, sources))
+        n_sources = len(sources)
+        connected_subgraph = self.callgraph.subgraph(
+            connected_nodes(self.callgraph, sources))
         added_class = set()
         for node in connected_subgraph.nodes:
             node_str = str(node)
@@ -141,12 +144,18 @@ class APKAnalyzer(object):
             added_class.add(class_name)
             if class_name in static_constructors:
                 sources.append(static_constructors[class_name])
+        n_added_static_sources = len(sources) - n_sources
+
+        connected_subgraph = self.callgraph.subgraph(
+            connected_nodes(self.callgraph, sources))
+        nx.readwrite.gml.write_gml(connected_subgraph, self.pruned_callgraph_filename)
 
         # get all targets
         native_targets = get_native_methods(self.analysis,
                                             public_only=False)
         targets = [LOADLIB_TARGET, *native_targets]
-        APKAnalyzer.log.info(f"found {len(targets)} targets and {len(sources)} sources")
+        APKAnalyzer.log.info(
+            f"found {len(targets)} targets and {len(sources)} sources ({n_added_static_sources} static constructors)")
 
         APKAnalyzer.log.info("looking for paths")
         paths = {}
@@ -253,9 +262,11 @@ class APKAnalyzer(object):
         if self._native_lib_analysis is not None:
             return self._native_lib_analysis
 
+        APKAnalyzer.log.info("analyzing native libraries")
         self._native_lib_analysis = dict()
         for lib in self.get_native_libs():
             self._native_lib_analysis[lib] = NativeLibAnalyzer(lib)
+        APKAnalyzer.log.info("analyzing native libraries done")
         return self._native_lib_analysis
 
     def get_analyzed_libs(self):
