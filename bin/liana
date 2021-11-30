@@ -98,7 +98,7 @@ def _find_vtable(apka, producer, libs=None, reachable=False):
     else:
         print("[!] vtable not found")
 
-def _find_path_to(apka, what, libs=None, reachable=False, disable_angr=False, disable_ghidra=False):
+def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False):
     lib, offset = what.split("@")
 
     try:
@@ -168,8 +168,11 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_angr=False, di
             print("[!] No path (lib dep graph)")
             continue
 
-        main_lib   = method.libpath
-        other_libs = list(map(lambda l: l.libpath, filter(lambda l: l.libpath != method.libpath, libs)))
+        main_lib = method.libpath
+        if not disable_multilib:
+            other_libs = list(map(lambda l: l.libpath, filter(lambda l: l.libpath != method.libpath, libs)))
+        else:
+            other_libs = list()
 
         src_addr = method.offset & 0xfffffffe
 
@@ -213,7 +216,7 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_angr=False, di
         else:
             print("[!] No path (callgraph)")
 
-def _find_path_to_csv(apka, file, libs=None, reachable=False, disable_angr=False, disable_ghidra=False):
+def _find_path_to_csv(apka, file, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False):
     fin = open(file, "r")
     for line in fin:
         line = line.strip()
@@ -222,7 +225,7 @@ def _find_path_to_csv(apka, file, libs=None, reachable=False, disable_angr=False
 
         lib, offset = line.split(",")
         lib = os.path.basename(lib)
-        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_angr, disable_ghidra)
+        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_multilib, disable_angr, disable_ghidra)
 
     fin.close()
 
@@ -253,6 +256,7 @@ def main(args):
     libs               = None
     disable_angr       = False
     disable_ghidra     = False
+    disable_multilib   = False
 
     if args.reachable:
         reachable_analysis = True
@@ -263,6 +267,8 @@ def main(args):
         disable_angr = True
     if args.disable_ghidra:
         disable_ghidra = True
+    if args.disable_multilib:
+        disable_multilib = True
 
     if disable_ghidra and disable_angr:
         sys.stderr.write("!Err: you cannot disable both Angr and Ghidra")
@@ -281,10 +287,10 @@ def main(args):
         _find_vtable(apka, args.find_vtable, libs, reachable_analysis)
 
     if args.find_path_to is not None:
-        _find_path_to(apka, args.find_path_to, libs, reachable_analysis, disable_angr, disable_ghidra)
+        _find_path_to(apka, args.find_path_to, libs, reachable_analysis, disable_multilib, disable_angr, disable_ghidra)
 
     if args.find_path_to_csv is not None:
-        _find_path_to_csv(apka, args.find_path_to_csv, libs, reachable_analysis, disable_angr, disable_ghidra)
+        _find_path_to_csv(apka, args.find_path_to_csv, libs, reachable_analysis, disable_multilib, disable_angr, disable_ghidra)
 
     if args.show_lib_dep_graph:
         _show_lib_dep_graph(apka)
@@ -298,6 +304,7 @@ if __name__=="__main__":
     parser.add_argument("--find-producer", help="Look for a producer given a consumer", nargs="?")
     parser.add_argument("--find-vtable", help="Find the returned vtable of a producer", nargs="?")
     parser.add_argument("--reachable", help="Analyze only reachable functions", action="store_true")
+    parser.add_argument("--disable-multilib", help="Disable the reasoning on multiple libraries", action="store_true")
     parser.add_argument("--disable-angr", help="Disable Angr plugin", action="store_true")
     parser.add_argument("--disable-ghidra", help="Disable Ghidra plugin", action="store_true")
     parser.add_argument("--all-archs", help="Analyze all archs (not only armv7) [Experimental]", action="store_true")

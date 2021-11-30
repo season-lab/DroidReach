@@ -134,6 +134,8 @@ class APKAnalyzer(object):
         n_sources = len(sources)
         connected_subgraph = self.callgraph.subgraph(
             connected_nodes(self.callgraph, sources))
+
+        # Add static constructors of classes that are used by the application
         added_class = set()
         for node in connected_subgraph.nodes:
             node_str = str(node)
