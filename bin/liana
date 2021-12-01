@@ -193,7 +193,9 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False
         elapsed = time.time() - start
         print(" OK (n_nodes: %d, n_edges: %d, elapsed: %.03f s)" % (len(cg.nodes), len(cg.edges), elapsed))
 
-        binfo       = proj.get_bininfo(lib)
+        binfo = proj.get_bininfo(lib)
+        if binfo is None:
+            print("[!] No path (lib not in callgraph)")
         rebased_off = offset + binfo.min_addr
 
         if rebased_off not in cg.nodes:

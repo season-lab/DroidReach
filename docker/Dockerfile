@@ -17,13 +17,18 @@ RUN apt-get install -y      \
 
 RUN pip install meson
 
-# Rizin 0.2.1
+# Rizin 0.4.0-git
 RUN cd /opt                                               && \
     git clone https://github.com/rizinorg/rizin.git       && \
     cd /opt/rizin                                         && \
-    git checkout 91d3bb43fd92fc04e8def76beb22c2d84ae53fb5 && \
+    git checkout cd6bde4aeb3221fb336b9df6080d4477d4fc0e78 && \
     meson build                                           && \
     ninja -C build install
+
+# Rizin fix
+RUN cp \
+    /opt/rizin/librz/include/rz_util/rz_bitvector.h \
+    /usr/local/include/librz/rz_util
 
 # Ghidra
 RUN cd /opt                                                      && \
@@ -52,7 +57,7 @@ ENV PATH=$PATH:/home/ubuntu/.local/bin
 RUN pip install networkx==2.5.1 \
                 yapsy           \
                 angr==9.0.8021  \
-                rzpipe==0.1.0   \
+                rzpipe          \
                 pydot==1.4.2    \
                 pyyaml
 
