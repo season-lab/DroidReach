@@ -142,9 +142,6 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False
     elapsed = time.time() - start
     print("OK (%.03f s)" % elapsed)
 
-    angr_emu = CEXProject.pm.get_plugin_by_name("AngrEmulated")
-    angr_emu.use_timeout_for_cfg = True
-
     ghidra = CEXProject.pm.get_plugin_by_name("Ghidra")
 
     jni_methods = dict()
@@ -197,6 +194,7 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False
         if binfo is None:
             print("[!] No path (lib not in callgraph)")
         rebased_off = offset + binfo.min_addr
+        rebased_off = rebased_off & 0xfffffffffffffffe
 
         if rebased_off not in cg.nodes:
             print("[!] No path (addr not in callgraph)")
@@ -249,6 +247,23 @@ def _show_lib_dep_graph(apka):
         print("\t\"%s\" -> \"%s\";" % (src, dst))
     print("}")
 
+def _configure_angr_ghidra(args):
+    angr_emu = CEXProject.pm.get_plugin_by_name("AngrEmulated")
+    angr_emu.use_timeout_for_cfg = True
+
+    ghidra = CEXProject.pm.get_plugin_by_name("Ghidra")
+
+    if args.ghidra_timeout:
+        ghidra.timeout = int(args.ghidra_timeout)
+
+    if args.angr_timeout:
+        angr_emu.timeout = int(args.angr_timeout)
+
+    if args.angr_max_calldepth:
+        angr_emu.calldepth = int(args.angr_max_calldepth)
+
+    if args.angr_ctx_sensitivity:
+        angr_emu.ctx_sensitivity = int(args.angr_ctx_sensitivity)
 
 def main(args):
     apk_path = args.apk
@@ -275,6 +290,8 @@ def main(args):
     if disable_ghidra and disable_angr:
         sys.stderr.write("!Err: you cannot disable both Angr and Ghidra")
         return 1
+
+    _configure_angr_ghidra(args)
 
     if args.print_native_functions:
         _print_native_functions(apka, libs, reachable_analysis)
@@ -309,6 +326,10 @@ if __name__=="__main__":
     parser.add_argument("--disable-multilib", help="Disable the reasoning on multiple libraries", action="store_true")
     parser.add_argument("--disable-angr", help="Disable Angr plugin", action="store_true")
     parser.add_argument("--disable-ghidra", help="Disable Ghidra plugin", action="store_true")
+    parser.add_argument("--ghidra-timeout", help="Set timeout for Ghidra on a single binary (default 20 min)", metavar="nsec", nargs="?")
+    parser.add_argument("--angr-timeout", help="Set timeout for Angr on a iCFG (default 30 min)", metavar="nsec", nargs="?")
+    parser.add_argument("--angr-max-calldepth", help="Set maximum calldepth for Angr (default 5)", metavar="val", nargs="?")
+    parser.add_argument("--angr-ctx-sensitivity", help="Set context sensitivity for Angr (default 1)", metavar="val", nargs="?")
     parser.add_argument("--all-archs", help="Analyze all archs (not only armv7) [Experimental]", action="store_true")
     parser.add_argument("--find-path-to", metavar="libpath.so@offset/name", help="Find path to native function", nargs="?")
     parser.add_argument("--find-path-to-csv", metavar="file.csv", help="Find path to the native functions specified in the CSV (lib.so,offset)", nargs="?")
