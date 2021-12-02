@@ -193,6 +193,7 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False
         binfo = proj.get_bininfo(lib)
         if binfo is None:
             print("[!] No path (lib not in callgraph)")
+            continue
         rebased_off = offset + binfo.min_addr
         rebased_off = rebased_off & 0xfffffffffffffffe
 
