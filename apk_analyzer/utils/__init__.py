@@ -62,9 +62,8 @@ def get_static_constructors_map(nodes: NodeView):
     res = dict()
     for node in nodes:
         node_str = str(node)
-        method_signature = node_str.split(" ")[1]
-        class_name = method_signature.split("->")[0]
-        method_name = method_signature.split("->")[1].split("(")[0]
+        class_name = node_str.split("->")[0]
+        method_name = node_str.split("->")[1].split("(")[0]
         if method_name == "<clinit>":
             res[class_name] = node_str
     return res

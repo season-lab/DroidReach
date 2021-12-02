@@ -18,7 +18,8 @@ from .utils.app_component import AppComponent
 from .utils.path_engine import PathEngine, generate_paths
 from .utils.timeout_decorator import TimeoutError, timeout
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+SCRIPTPATH = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(SCRIPTPATH, ".."))
 from cex_src.cex import CEXProject
 from cex_src.cex.cfg_extractors.angr_plugin.common import AngrCfgExtractor
 
@@ -54,22 +55,26 @@ class APKAnalyzer(object):
         if not os.path.exists(os.path.join(self.wdir, os.path.basename(self.apk_path))):
             copyfile(self.apk_path, os.path.join(self.wdir, os.path.basename(self.apk_path)))
 
-    def __init__(self, apk_path):
+    def __init__(self, apk_path, use_flowdroid=False):
         if not os.path.exists(apk_path):
             APKAnalyzer.log.error(f"{apk_path} does not exist")
             raise FileNotFoundException(apk_path)
 
         APKAnalyzer.log.info("APKAnalyzer initialization")
+        self.use_flowdroid = use_flowdroid
         self.apk_path = apk_path
         self.apk_name = os.path.basename(self.apk_path).replace(".apk", "")
         self.apk_hash = md5_hash(self.apk_path)
         self.wdir = os.path.join(APKAnalyzer.tmp_dir, self.apk_hash)
         self.apk, self.dvm, self.analysis = None, None, None
 
-        self.callgraph_filename = os.path.join(self.wdir, "callgraph.gml")
-        self.pruned_callgraph_filename = os.path.join(self.wdir, "pruned_callgraph.gml")
-        self.callgraph = None
-        self.paths_json_filename = os.path.join(self.wdir, "paths.json")
+        self.callgraph_flowdroid_filename = os.path.join(self.wdir, "callgraph_flowdroid.json")
+        self.callgraph_androguard_filename = os.path.join(self.wdir, "callgraph_androguard.gml")
+        self.pruned_callgraph_filename = os.path.join(self.wdir, "pruned_callgraph_androguard.gml")
+        self.callgraph_flowdroid = None
+        self.callgraph_androguard = None
+        self.paths_json_filename = \
+            os.path.join(self.wdir, "androguard_paths.json") if not use_flowdroid else os.path.join(self.wdir, "flowdroid_paths.json")
         self.paths = None
         self.lib_dep_graph = None
         self._create_dirs()
@@ -89,22 +94,98 @@ class APKAnalyzer(object):
         self.apk, self.dvm, self.analysis = AnalyzeAPK(self.apk_path)
         self.package_name = self.apk.get_package()
 
-    def get_callgraph(self):
-        if self.callgraph is not None:
-            return self.callgraph
+    def get_callgraph_flowdroid(self):
+        if self.callgraph_flowdroid is None:
+            flowdroid_bin = os.path.join(SCRIPTPATH, "bin/FlowdroidCGDumper.jar")
+            platforms_dir = os.path.join(os.path.expanduser("~"), "Android/Sdk/platforms")
+            if not os.path.exists(platforms_dir):
+                platforms_dir = "/opt/android-sdk/platforms"
+                if not os.path.exists(platforms_dir):
+                    APKAnalyzer.log.error("unable to find android sdk for building the callgraph with flowdroid")
+                    return None
 
-        APKAnalyzer.log.info("generating callgraph")
-        if not os.path.exists(self.callgraph_filename):
-            cg = subprocess.run(['androguard', 'cg', '-o', self.callgraph_filename, self.apk_path],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            APKAnalyzer.log.info(f"callgraph generated in {self.callgraph_filename}")
-        else:
-            APKAnalyzer.log.info(f"callgraph found cached in {self.callgraph_filename}")
+            APKAnalyzer.log.info("generating Flowdroid callgraph")
+            if not os.path.exists(self.callgraph_flowdroid_filename):
+                fout = open(self.callgraph_flowdroid_filename, "w")
+                cg = subprocess.run(['java', '-jar', flowdroid_bin, platforms_dir, self.apk_path],
+                                    stdout=fout, stderr=subprocess.DEVNULL)
+                fout.close()
+                APKAnalyzer.log.info(f"callgraph generated in {self.callgraph_flowdroid_filename}")
+            else:
+                APKAnalyzer.log.info(f"callgraph found cached in {self.callgraph_flowdroid_filename}")
 
-        APKAnalyzer.log.info("reading callgraph")
-        self.callgraph = nx.read_gml(self.callgraph_filename)
-        APKAnalyzer.log.info("callgraph read")
-        return self.callgraph
+            with open(self.callgraph_flowdroid_filename, "r") as fin:
+                cg = json.load(fin)
+
+            APKAnalyzer.log.info("reading callgraph")
+            self.callgraph_flowdroid = nx.DiGraph()
+            for edge in cg["edges"]:
+                src = "L" + edge["src"][1:-1].replace(": ", ";->").replace(".", "/")
+                dst = "L" + edge["dst"][1:-1].replace(": ", ";->").replace(".", "/")
+                self.callgraph_flowdroid.add_edge(src, dst)
+            APKAnalyzer.log.info("callgraph read")
+
+        sources = list()
+        for node in self.callgraph_flowdroid:
+            if len(self.callgraph_flowdroid.in_edges(node)) == 0:
+                sources.append(str(node))
+
+        return self.callgraph_flowdroid, sources
+
+    def get_callgraph_androguard(self):
+        if self.callgraph_androguard is None:
+            APKAnalyzer.log.info("generating androguard callgraph")
+            if not os.path.exists(self.callgraph_androguard_filename):
+                cg = subprocess.run(['androguard', 'cg', '-o', self.callgraph_androguard_filename, self.apk_path],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                APKAnalyzer.log.info(f"callgraph generated in {self.callgraph_androguard_filename}")
+            else:
+                APKAnalyzer.log.info(f"callgraph found cached in {self.callgraph_androguard_filename}")
+
+            APKAnalyzer.log.info("reading callgraph")
+            self.callgraph_androguard = nx.read_gml(self.callgraph_androguard_filename)
+
+            def relable_function(name):
+                return name.split(" ")[1]
+
+            self.callgraph_androguard = nx.relabel_nodes(
+                self.callgraph_androguard,
+                relable_function)
+            APKAnalyzer.log.info("callgraph read")
+
+        acts  = AppComponent('a', self.apk.get_activities())
+        provs = AppComponent('p', self.apk.get_providers())
+        recvs = AppComponent('r', self.apk.get_receivers())
+        servs = AppComponent('s', self.apk.get_services())
+        static_constructors = get_static_constructors_map(self.callgraph_androguard.nodes)
+
+        components = [acts, provs, recvs, servs]
+        sources = list()
+        for comp in components:
+            sources.extend(comp.get_sources(self.callgraph_androguard.nodes))
+
+        n_sources = len(sources)
+        connected_subgraph = self.callgraph_androguard.subgraph(
+            connected_nodes(self.callgraph_androguard, sources))
+
+        # Add static constructors of classes that are used by the application
+        added_class = set()
+        for node in connected_subgraph.nodes:
+            node_str = str(node)
+            class_name = node_str.split("->")[0]
+            if class_name in added_class:
+                continue
+            added_class.add(class_name)
+            if class_name in static_constructors:
+                sources.append(static_constructors[class_name])
+        n_added_static_sources = len(sources) - n_sources
+        APKAnalyzer.log.info(f"added {n_added_static_sources} static constructors as sources")
+
+        connected_subgraph = self.callgraph_androguard.subgraph(
+            connected_nodes(self.callgraph_androguard, sources))
+        nx.readwrite.gml.write_gml(connected_subgraph, self.pruned_callgraph_filename)
+
+        return self.callgraph_androguard, sources
 
     def get_paths_to_native(self):
         if self.paths is not None:
@@ -118,59 +199,29 @@ class APKAnalyzer(object):
             return self.paths
 
         self._lazy_apk_init()
-        self.get_callgraph()
-
-        acts  = AppComponent('a', self.apk.get_activities())
-        provs = AppComponent('p', self.apk.get_providers())
-        recvs = AppComponent('r', self.apk.get_receivers())
-        servs = AppComponent('s', self.apk.get_services())
-        static_constructors = get_static_constructors_map(self.callgraph.nodes)
-
-        components = [acts, provs, recvs, servs]
-        sources = list()
-        for comp in components:
-            sources.extend(comp.get_sources(self.callgraph.nodes))
-
-        n_sources = len(sources)
-        connected_subgraph = self.callgraph.subgraph(
-            connected_nodes(self.callgraph, sources))
-
-        # Add static constructors of classes that are used by the application
-        added_class = set()
-        for node in connected_subgraph.nodes:
-            node_str = str(node)
-            method_signature = node_str.split(" ")[1]
-            class_name = class_name = method_signature.split("->")[0]
-            if class_name in added_class:
-                continue
-            added_class.add(class_name)
-            if class_name in static_constructors:
-                sources.append(static_constructors[class_name])
-        n_added_static_sources = len(sources) - n_sources
-
-        connected_subgraph = self.callgraph.subgraph(
-            connected_nodes(self.callgraph, sources))
-        nx.readwrite.gml.write_gml(connected_subgraph, self.pruned_callgraph_filename)
+        if not self.use_flowdroid:
+            cg, sources = self.get_callgraph_androguard()
+        else:
+            cg, sources = self.get_callgraph_flowdroid()
 
         # get all targets
-        native_targets = get_native_methods(self.analysis,
-                                            public_only=False)
-        targets = [LOADLIB_TARGET, *native_targets]
+        native_targets = self.find_native_methods()
+        targets = [LOADLIB_TARGET, *list(map(lambda x: x[0] + "->" + x[1] + x[2], native_targets))]
         APKAnalyzer.log.info(
-            f"found {len(targets)} targets and {len(sources)} sources ({n_added_static_sources} static constructors)")
+            f"found {len(targets)} targets and {len(sources)} sources")
 
+        cg_reversed = cg.reverse()
         APKAnalyzer.log.info("looking for paths")
         paths = {}
         for t in targets:
             for s in sources:
-                if s not in self.callgraph.nodes or t not in self.callgraph.nodes:
+                if s not in cg.nodes or t not in cg.nodes:
                     continue
-                if nx.has_path(self.callgraph, source=s, target=t):
-                    link = next(nx.all_simple_paths(self.callgraph, source=s, target=t), None)
-                    if link is None:
-                        continue  # Strange!
-                    paths[t] = link
-                    break
+                link = next(nx.all_simple_paths(cg_reversed, source=t, target=s), None)
+                if link is None:
+                    continue
+                paths[t] = link[::-1]
+                break
         APKAnalyzer.log.info(f"found {len(paths)} paths")
 
         self.paths = {"md5": self.apk_hash, "paths": paths}
@@ -181,7 +232,8 @@ class APKAnalyzer(object):
         return self.paths
 
     def delete_callgraph(self):
-        self.callgraph = None
+        self.callgraph_androguard = None
+        self.callgraph_flowdroid = None
 
     def get_native_libs(self):
         if self._native_libs is not None:
@@ -430,10 +482,10 @@ class APKAnalyzer(object):
             lambda x: x.split(";->")[1].split("(")[0],
             native_signatures))
         class_names  = list(map(
-            lambda x: "L" + x.split(" L")[1].split(";->")[0] + ";",
+            lambda x: x.split(";->")[0] + ";",
             native_signatures))
         args_strings = list(map(
-            lambda x: ("(" + x.split("(")[1].split(" [access")[0]).replace(" ", ""),
+            lambda x: ("(" + x.split("(")[1]).replace(" ", ""),
             native_signatures))
 
         self._native_methods_reachable = list(zip(class_names, native_names, args_strings))
@@ -443,12 +495,12 @@ class APKAnalyzer(object):
         paths_result = self.get_paths_to_native()
         for n in paths_result["paths"]:
             native_name = n.split(";->")[1].split("(")[0]
-            class_name  = "L" + n.split(" L")[1].split(";->")[0] + ";"
+            class_name  = n.split(";->")[0] + ";"
             if class_name == method.class_name and native_name == method.method_name:
                 java_path = list()
                 for j in paths_result["paths"][n]:
                     native_name = j.split(";->")[1].split("(")[0]
-                    class_name  = "L" + j.split(" L")[1].split(";->")[0] + ";"
+                    class_name  = j.split(";->")[0] + ";"
                     java_path.append(class_name + " " + native_name)
                 return java_path
         return None

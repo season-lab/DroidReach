@@ -269,7 +269,11 @@ def _configure_angr_ghidra(args):
 def main(args):
     apk_path = args.apk
 
-    apka = APKAnalyzer(apk_path)
+    use_flowdroid = False
+    if args.use_flowdroid:
+        use_flowdroid = True
+
+    apka = APKAnalyzer(apk_path, use_flowdroid=use_flowdroid)
     reachable_analysis = False
     libs               = None
     disable_angr       = False
@@ -324,6 +328,7 @@ if __name__=="__main__":
     parser.add_argument("--find-producer", help="Look for a producer given a consumer", nargs="?")
     parser.add_argument("--find-vtable", help="Find the returned vtable of a producer", nargs="?")
     parser.add_argument("--reachable", help="Analyze only reachable functions", action="store_true")
+    parser.add_argument("--use-flowdroid", help="Use flowdroid to generate the Java callgraph", action="store_true")
     parser.add_argument("--disable-multilib", help="Disable the reasoning on multiple libraries", action="store_true")
     parser.add_argument("--disable-angr", help="Disable Angr plugin", action="store_true")
     parser.add_argument("--disable-ghidra", help="Disable Ghidra plugin", action="store_true")

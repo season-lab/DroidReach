@@ -21,14 +21,9 @@ RUN pip install meson
 RUN cd /opt                                               && \
     git clone https://github.com/rizinorg/rizin.git       && \
     cd /opt/rizin                                         && \
-    git checkout cd6bde4aeb3221fb336b9df6080d4477d4fc0e78 && \
+    git checkout 81964a20f3cbf9a24ac417ba0667cdbad224555a && \
     meson build                                           && \
     ninja -C build install
-
-# Rizin fix
-RUN cp \
-    /opt/rizin/librz/include/rz_util/rz_bitvector.h \
-    /usr/local/include/librz/rz_util
 
 # Ghidra
 RUN cd /opt                                                      && \
@@ -38,6 +33,15 @@ RUN cd /opt                                                      && \
 
 ENV GHIDRA_HOME=/opt/ghidra_9.2.3_PUBLIC
 ENV LD_LIBRARY_PATH=/usr/local/lib/x86_64-linux-gnu/
+
+# Android SDK
+RUN cd /opt && mkdir android-sdk && cd android-sdk                                          && \ 
+    wget https://dl.google.com/android/repository/commandlinetools-linux-7583922_latest.zip && \
+    unzip commandlinetools-linux-7583922_latest.zip                                         && \
+    rm commandlinetools-linux-7583922_latest.zip                                            && \
+    echo "y" | \
+        ./cmdline-tools/bin/sdkmanager \
+            --sdk_root=/opt/android-sdk "platforms;android-28" "platforms;android-29" "platforms;android-30"
 
 ARG USER_ID=1000
 ARG GROUP_ID=1000
