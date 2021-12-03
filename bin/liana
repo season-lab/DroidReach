@@ -10,8 +10,71 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from apk_analyzer import APKAnalyzer
 from apk_analyzer.utils import md5_hash
 from cex_src.cex import CEXProject
+from cex_src.cex.utils import to_dot as cex_to_dot
 
 cex_project_cache = dict()
+
+def print_err(*msg):
+    sys.stderr.write(" ".join(map(str, msg) + "\n"))
+
+def _show_cfg_of(apka, libs, thing):
+    def show_native_cfg(libname, offset):
+        analyzed_lib = None
+        for l in libs:
+            if apka.get_libname_from_hash(l) == libname:
+                analyzed_lib = apka.get_native_analyzer(l)
+                break
+        if analyzed_lib is None:
+            print_err("[+] Unable to find library %s" % libname)
+            return
+
+        try:
+            offset = int(offset, 16)
+        except:
+            name = offset
+            offset = None
+
+        if offset is None:
+            rz = analyzed_lib._open_rz()
+            rz.cmd("aa")
+            addr = rz.cmd("afl~%s[0]" % name).strip()
+
+            rz.quit()
+            if addr == "":
+                print_err("[+] Unable to find function %s" % name)
+                return
+            offset = int(addr, 16)
+
+        proj = CEXProject(analyzed_lib.libpath, plugins=["Ghidra", "AngrEmulated"])
+        cfg = proj.get_cfg(offset+0x400000)
+        print(cex_to_dot(cfg))
+
+    def show_java_cfg(method_name):
+        cfgs = apka.get_cfgs()
+        if method_name not in cfgs:
+            print_err("[+] Unable to find CFG of method %s" % method_name)
+            return
+        cfg = cfgs[method_name]
+        print("digraph {\n\tnode [shape=box];")
+        print("\tgraph [fontname = \"monospace\"];")
+        print("\tnode  [fontname = \"monospace\"];")
+        print("\tedge  [fontname = \"monospace\"];")
+
+        for n in cfg.nodes:
+            print("\t\"%s\" [label=\"%s\l\"];" % (n, cfg.nodes[n]["label"].replace("\n", "\l")))
+        print()
+
+        for src, dst in cfg.edges:
+            print("\t\"%s\" -> \"%s\";" % (src, dst))
+        print("}")
+
+    try:
+        libname, offset = thing.split("@")
+        show_native_cfg(libname, offset)
+        return
+    except:
+        pass
+    show_java_cfg(thing)
 
 def _print_native_functions(apka, libs=None, reachable=False):
     methods = None
@@ -319,10 +382,14 @@ def main(args):
     if args.show_lib_dep_graph:
         _show_lib_dep_graph(apka)
 
+    if args.cfg_dot:
+        _show_cfg_of(apka, libs, args.cfg_dot)
+
     return 0
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Liana APK analyzer')
+    parser.add_argument("--cfg-dot", help="Print the CFG of the function in dot format (either class;->method(args), or lib.so@offset/name)", nargs="?")
     parser.add_argument("--print-native-functions", help="Print native functions", action="store_true")
     parser.add_argument("--check-consumer", help="Check if the method is a consumer", nargs="?")
     parser.add_argument("--find-producer", help="Look for a producer given a consumer", nargs="?")

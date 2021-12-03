@@ -10,6 +10,7 @@ import networkx as nx
 
 from shutil import copyfile
 from collections import namedtuple
+from androguard.session import Session
 from androguard.misc import AnalyzeAPK
 from .JavaNameDemangler import JavaNameDemangler, FailedDemanglingError
 from .NativeLibAnalyzer import NativeLibAnalyzer
@@ -67,14 +68,17 @@ class APKAnalyzer(object):
         self.apk_hash = md5_hash(self.apk_path)
         self.wdir = os.path.join(APKAnalyzer.tmp_dir, self.apk_hash)
         self.apk, self.dvm, self.analysis = None, None, None
+        self.androguard_session = None
 
         self.callgraph_flowdroid_filename = os.path.join(self.wdir, "callgraph_flowdroid.json")
         self.callgraph_androguard_filename = os.path.join(self.wdir, "callgraph_androguard.gml")
         self.pruned_callgraph_filename = os.path.join(self.wdir, "pruned_callgraph_androguard.gml")
+        self.cfgs_json_filename = os.path.join(self.wdir, "cfgs.json")
         self.callgraph_flowdroid = None
         self.callgraph_androguard = None
         self.paths_json_filename = \
             os.path.join(self.wdir, "androguard_paths.json") if not use_flowdroid else os.path.join(self.wdir, "flowdroid_paths.json")
+        self.cfgs = None
         self.paths = None
         self.lib_dep_graph = None
         self._create_dirs()
@@ -91,10 +95,80 @@ class APKAnalyzer(object):
     def _lazy_apk_init(self):
         if self.apk is not None:
             return
-        self.apk, self.dvm, self.analysis = AnalyzeAPK(self.apk_path)
+        self.androguard_session = Session()
+        self.apk, self.dvm, self.analysis = AnalyzeAPK(self.apk_path, session=self.androguard_session)
         self.package_name = self.apk.get_package()
 
+    def get_cfgs(self):
+        self._lazy_apk_init()
+        if self.cfgs is not None:
+            return self.cfgs
+
+        if not os.path.exists(self.cfgs_json_filename):
+            res = { "classes": dict() }
+            for _, vm, vmx in self.androguard_session.get_objects_dex():
+                for method in vm.get_methods():
+                    class_name = str(method.get_class_name())
+                    if class_name not in res["classes"]:
+                        res["classes"][class_name] = {"methods": list()}
+                    class_json = res["classes"][class_name]
+
+                    method_name = str(method.get_name())
+                    method_descriptor = str(method.get_descriptor())
+                    method_json = {
+                        "name": method_name,
+                        "descriptor": method_descriptor,
+                        "basic_blocks": list()
+                    }
+                    class_json["methods"].append(method_json)
+
+                    am = vmx.get_method(method)
+                    bbs = am.get_basic_blocks()
+                    for bb in bbs.bb:
+                        bb_json = {
+                            "start": bb.start,
+                            "instructions": list(),
+                            "successors": [x[1] for x in bb.get_next()]
+                        }
+                        method_json["basic_blocks"].append(bb_json)
+
+                        idx = bb.start
+                        for insn in bb.get_instructions():
+                            bb_json["instructions"].append({
+                                "idx": idx,
+                                "mnemonic": "%s %s" % (insn.get_name(), insn.get_output(0))
+                            })
+                            idx += insn.get_length()
+            with open(self.cfgs_json_filename, "w") as fout:
+                fout.write(json.dumps(res))
+            res = dict()
+
+        with open(self.cfgs_json_filename, "r") as fin:
+            cfgs_json = json.load(fin)
+
+        self.cfgs = dict()
+        for c in cfgs_json["classes"]:
+            for m in cfgs_json["classes"][c]["methods"]:
+                method_id = "%s->%s%s" % (c, m["name"], m["descriptor"])
+                self.cfgs[method_id] = nx.DiGraph()
+                cfg = self.cfgs[method_id]
+                for bb in m["basic_blocks"]:
+                    label = ""
+                    if bb["start"] == 0:
+                        label += "%s\n\n" % method_id
+                    label += \
+                        "\n".join(["%02d: %s" % (x["idx"], x["mnemonic"]) for x in bb["instructions"]])
+                    cfg.add_node(
+                        bb["start"],
+                        ids=[x["idx"] for x in bb["instructions"]],
+                        label=label)
+                for bb in m["basic_blocks"]:
+                    for s in bb["successors"]:
+                        cfg.add_edge(bb["start"], s)
+        return self.cfgs
+
     def get_callgraph_flowdroid(self):
+        # Todo: add callsites
         if self.callgraph_flowdroid is None:
             flowdroid_bin = os.path.join(SCRIPTPATH, "bin/FlowdroidCGDumper.jar")
             platforms_dir = os.path.join(os.path.expanduser("~"), "Android/Sdk/platforms")
