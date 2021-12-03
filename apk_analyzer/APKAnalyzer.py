@@ -100,11 +100,12 @@ class APKAnalyzer(object):
         self.package_name = self.apk.get_package()
 
     def get_cfgs(self):
-        self._lazy_apk_init()
         if self.cfgs is not None:
             return self.cfgs
 
+        cfgs_json = None
         if not os.path.exists(self.cfgs_json_filename):
+            self._lazy_apk_init()
             res = { "classes": dict() }
             for _, vm, vmx in self.androguard_session.get_objects_dex():
                 for method in vm.get_methods():
@@ -141,10 +142,11 @@ class APKAnalyzer(object):
                             idx += insn.get_length()
             with open(self.cfgs_json_filename, "w") as fout:
                 fout.write(json.dumps(res))
-            res = dict()
+            cfgs_json = res
 
-        with open(self.cfgs_json_filename, "r") as fin:
-            cfgs_json = json.load(fin)
+        if cfgs_json is None:
+            with open(self.cfgs_json_filename, "r") as fin:
+                cfgs_json = json.load(fin)
 
         self.cfgs = dict()
         for c in cfgs_json["classes"]:
