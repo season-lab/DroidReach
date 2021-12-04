@@ -194,7 +194,7 @@ class APKAnalyzer(object):
                 cg = json.load(fin)
 
             APKAnalyzer.log.info("reading callgraph")
-            self.callgraph_flowdroid = nx.DiGraph()
+            self.callgraph_flowdroid = nx.MultiDiGraph()
             for edge in cg["edges"]:
                 src = "L" + edge["src"][1:-1].replace(": ", ";->").replace(".", "/")
                 dst = "L" + edge["dst"][1:-1].replace(": ", ";->").replace(".", "/")
@@ -229,6 +229,7 @@ class APKAnalyzer(object):
                 relable_function)
             APKAnalyzer.log.info("callgraph read")
 
+        self._lazy_apk_init()
         acts  = AppComponent('a', self.apk.get_activities())
         provs = AppComponent('p', self.apk.get_providers())
         recvs = AppComponent('r', self.apk.get_receivers())
@@ -262,6 +263,13 @@ class APKAnalyzer(object):
         nx.readwrite.gml.write_gml(connected_subgraph, self.pruned_callgraph_filename)
 
         return self.callgraph_androguard, sources
+
+    def get_callgraph(self):
+        if not self.use_flowdroid:
+            cg, _ = self.get_callgraph_androguard()
+        else:
+            cg, _ = self.get_callgraph_flowdroid()
+        return cg
 
     def get_paths_to_native(self):
         if self.paths is not None:
@@ -577,7 +585,8 @@ class APKAnalyzer(object):
                 for j in paths_result["paths"][n]:
                     native_name = j.split(";->")[1].split("(")[0]
                     class_name  = j.split(";->")[0] + ";"
-                    java_path.append(class_name + " " + native_name)
+                    args = "(" + j.split(";->")[1].split("(")[1]
+                    java_path.append(class_name + "->" + native_name + args)
                 return java_path
         return None
 

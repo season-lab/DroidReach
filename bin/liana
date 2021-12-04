@@ -6,6 +6,8 @@ import time
 import sys
 import os
 
+from networkx.generators.classic import path_graph
+
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from apk_analyzer import APKAnalyzer
 from apk_analyzer.utils import md5_hash
@@ -68,13 +70,15 @@ def _show_cfg_of(apka, libs, thing):
             print("\t\"%s\" -> \"%s\";" % (src, dst))
         print("}")
 
+    libname, offset = None, None
     try:
         libname, offset = thing.split("@")
-        show_native_cfg(libname, offset)
-        return
     except:
         pass
-    show_java_cfg(thing)
+    if libname is not None:
+        show_native_cfg(libname, offset)
+    else:
+        show_java_cfg(thing)
 
 def _print_native_functions(apka, libs=None, reachable=False):
     methods = None
@@ -161,7 +165,67 @@ def _find_vtable(apka, producer, libs=None, reachable=False):
     else:
         print("[!] vtable not found")
 
-def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False):
+def _gen_path(apka, java_method, cex_proj, native_graph, src_native, dst_native, full_icfg_path):
+    res = list()
+    java_path = apka.get_path_to_native_method(java_method)
+    native_path = nx.shortest_path(native_graph, src_native, dst_native)
+    if not full_icfg_path:
+        if java_path is not None:
+            for j in java_path:
+                res.append("%s" % j)
+        else:
+            res.append("%s %s" % (java_method.class_name, java_method.method_name))
+        for v in native_path:
+            data  = native_graph.nodes[v]["data"]
+            binfo = cex_proj.get_bin_containing(v)
+            assert binfo is not None
+            res.append("%s @ %s+%#x" % (data.name, binfo.name, v - binfo.min_addr))
+        return res
+    else:
+        java_cfgs = apka.get_cfgs()
+        java_cg = apka.get_callgraph()
+        if java_path is not None:
+            path_g = nx.path_graph(java_path)
+            for src, dst in path_g.edges:
+                assert src in java_cfgs # CFG not found
+                src_cfg = java_cfgs[src]
+                callsite = list(java_cg.get_edge_data(src, dst).values())[0]["offset"]
+
+                root_block = None
+                callsite_block = None
+                for node_id in src_cfg.nodes:
+                    node = src_cfg.nodes[node_id]
+                    if node_id == 0:
+                        root_block = node_id
+                    if callsite in node["ids"]:
+                        callsite_block = (node_id, node["ids"].index(callsite))
+                assert callsite_block is not None # Callsite not found
+                assert root_block is not None # Root not found
+
+                cfg_path = nx.shortest_path(src_cfg, root_block, callsite_block[0])
+                for node_id in cfg_path:
+                    node = src_cfg.nodes[node_id]
+                    insns = node["label"].replace("\n\n", "\n").split("\n")
+                    for i, insn in enumerate(insns):
+                        if node_id == callsite_block[0]:
+                            if i <= callsite_block[1]+1:
+                                res.append("%s" % insn)
+                        else:
+                            res.append("%s" % insn)
+            res.append("%s" % (java_path[-1]))
+        else:
+            res.append("%s %s" % (java_method.class_name, java_method.method_name))
+
+        for v in native_path:
+            data  = native_graph.nodes[v]["data"]
+            binfo = cex_proj.get_bin_containing(v)
+            assert binfo is not None
+            for insn in data.insns:
+                res.append("[%s+0x%04x] 0x%08x: %s" % \
+                    (binfo.name, insn.addr - binfo.min_addr, insn.addr, insn.mnemonic))
+        return res
+
+def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False):
     lib, offset = what.split("@")
 
     try:
@@ -236,7 +300,7 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False
 
         src_addr = method.offset & 0xfffffffe
 
-        print("[+] Building the callgraph... ", end="")
+        print("[+] Building the graph... ", end="")
         plugins = []
         if not disable_ghidra:
             plugins.append("Ghidra")
@@ -249,38 +313,32 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False
             proj = CEXProject(main_lib, other_libs, plugins=plugins)
             cex_project_cache[method.libhash] = proj
         start = time.time()
-        cg = proj.get_callgraph(src_addr)
+        if not full_icfg_path:
+            g = proj.get_callgraph(src_addr)
+        else:
+            g = proj.get_icfg(src_addr)
         elapsed = time.time() - start
-        print(" OK (n_nodes: %d, n_edges: %d, elapsed: %.03f s)" % (len(cg.nodes), len(cg.edges), elapsed))
+        print(" OK (n_nodes: %d, n_edges: %d, elapsed: %.03f s)" % (len(g.nodes), len(g.edges), elapsed))
 
         binfo = proj.get_bininfo(lib)
         if binfo is None:
-            print("[!] No path (lib not in callgraph)")
+            print("[!] No path (lib not in graph)")
             continue
         rebased_off = offset + binfo.min_addr
         rebased_off = rebased_off & 0xfffffffffffffffe
 
-        if rebased_off not in cg.nodes:
-            print("[!] No path (addr not in callgraph)")
-        elif nx.has_path(cg, src_addr, rebased_off):
-            path_to_java = apka.get_path_to_native_method(method)
+        if rebased_off not in g.nodes:
+            print("[!] No path (addr not in graph)")
+        elif nx.has_path(g, src_addr, rebased_off):
+            path = _gen_path(apka, method, proj, g, src_addr, rebased_off, full_icfg_path)
             print("[+] Path found:")
-            if path_to_java is not None:
-                for j in path_to_java:
-                    print(" -> %s" % j)
-            else:
-                print(" -> %s %s" % (method.class_name, method.method_name))
-            p = nx.shortest_path(cg, src_addr, rebased_off)
-            for v in p:
-                data  = cg.nodes[v]["data"]
-                binfo = proj.get_bin_containing(v)
-                assert binfo is not None
-                print(" -> %s @ %s+%#x" % (data.name, binfo.name, v - binfo.min_addr))
+            for p in path:
+                print(" -> %s" % p)
             break
         else:
             print("[!] No path (callgraph)")
 
-def _find_path_to_csv(apka, file, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False):
+def _find_path_to_csv(apka, file, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False):
     fin = open(file, "r")
     for line in fin:
         line = line.strip()
@@ -289,7 +347,7 @@ def _find_path_to_csv(apka, file, libs=None, reachable=False, disable_multilib=F
 
         lib, offset = line.split(",")
         lib = os.path.basename(lib)
-        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_multilib, disable_angr, disable_ghidra)
+        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_multilib, disable_angr, disable_ghidra, full_icfg_path)
 
     fin.close()
 
@@ -342,6 +400,7 @@ def main(args):
     disable_angr       = False
     disable_ghidra     = False
     disable_multilib   = False
+    full_icfg_path     = False
 
     if args.reachable:
         reachable_analysis = True
@@ -354,6 +413,11 @@ def main(args):
         disable_ghidra = True
     if args.disable_multilib:
         disable_multilib = True
+    if args.print_full_icfg_path:
+        if use_flowdroid:
+            print("[!] --print-full-icfg-path is not supported when using FlowDroid backend (WIP)")
+        else:
+            full_icfg_path = True
 
     if disable_ghidra and disable_angr:
         sys.stderr.write("!Err: you cannot disable both Angr and Ghidra")
@@ -374,10 +438,12 @@ def main(args):
         _find_vtable(apka, args.find_vtable, libs, reachable_analysis)
 
     if args.find_path_to is not None:
-        _find_path_to(apka, args.find_path_to, libs, reachable_analysis, disable_multilib, disable_angr, disable_ghidra)
+        _find_path_to(
+            apka, args.find_path_to, libs, reachable_analysis, disable_multilib, disable_angr, disable_ghidra, full_icfg_path)
 
     if args.find_path_to_csv is not None:
-        _find_path_to_csv(apka, args.find_path_to_csv, libs, reachable_analysis, disable_multilib, disable_angr, disable_ghidra)
+        _find_path_to_csv(
+            apka, args.find_path_to_csv, libs, reachable_analysis, disable_multilib, disable_angr, disable_ghidra, full_icfg_path)
 
     if args.show_lib_dep_graph:
         _show_lib_dep_graph(apka)
@@ -404,6 +470,7 @@ if __name__=="__main__":
     parser.add_argument("--angr-max-calldepth", help="Set maximum calldepth for Angr (default 5)", metavar="val", nargs="?")
     parser.add_argument("--angr-ctx-sensitivity", help="Set context sensitivity for Angr (default 1)", metavar="val", nargs="?")
     parser.add_argument("--all-archs", help="Analyze all archs (not only armv7) [Experimental]", action="store_true")
+    parser.add_argument("--print-full-icfg-path", help="Print the full path in the iCFG when executing --find-path-*", action="store_true")
     parser.add_argument("--find-path-to", metavar="libpath.so@offset/name", help="Find path to native function", nargs="?")
     parser.add_argument("--find-path-to-csv", metavar="file.csv", help="Find path to the native functions specified in the CSV (lib.so,offset)", nargs="?")
     parser.add_argument("--show-lib-dep-graph", help="Print the library dependency graph in dot to stdout", action="store_true")
