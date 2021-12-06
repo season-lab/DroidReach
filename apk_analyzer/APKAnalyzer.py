@@ -449,7 +449,7 @@ class APKAnalyzer(object):
     def get_native_analyzer(self, lib_hash):
         return self._native_lib_analysis[self.get_libpath_from_hash(lib_hash)]
 
-    def find_native_implementations(self, method_name, class_name, args_str, lib_whitelist=None, resolve_clashes_with_angr=False):
+    def find_native_implementations(self, method_name, class_name, args_str, lib_whitelist=None, resolve_clashes_with_angr=True):
         APKAnalyzer.log.info(f"looking for native implementation of {method_name} of class {class_name}")
         native_libs = self._analyze_native_libs()
         res = list()
