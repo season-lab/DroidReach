@@ -387,6 +387,9 @@ def _configure_angr_ghidra(args):
     if args.angr_ctx_sensitivity:
         angr_emu.ctx_sensitivity = int(args.angr_ctx_sensitivity)
 
+    if args.angr_bb_iterations:
+        angr_emu.bb_iterations = int(args.angr_bb_iterations)
+
 def main(args):
     apk_path = args.apk
 
@@ -469,6 +472,7 @@ if __name__=="__main__":
     parser.add_argument("--angr-timeout", help="Set timeout for Angr on a iCFG (default 30 min)", metavar="nsec", nargs="?")
     parser.add_argument("--angr-max-calldepth", help="Set maximum calldepth for Angr (default 5)", metavar="val", nargs="?")
     parser.add_argument("--angr-ctx-sensitivity", help="Set context sensitivity for Angr (default 1)", metavar="val", nargs="?")
+    parser.add_argument("--angr-bb-iterations", help="Set maximum iterations on a basic block for Angr (default 1)", metavar="val", nargs="?")
     parser.add_argument("--all-archs", help="Analyze all archs (not only armv7) [Experimental]", action="store_true")
     parser.add_argument("--print-full-icfg-path", help="Print the full path in the iCFG when executing --find-path-*", action="store_true")
     parser.add_argument("--find-path-to", metavar="libpath.so@offset/name", help="Find path to native function", nargs="?")
