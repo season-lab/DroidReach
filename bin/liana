@@ -6,11 +6,8 @@ import time
 import sys
 import os
 
-from networkx.generators.classic import path_graph
-
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from apk_analyzer import APKAnalyzer
-from apk_analyzer.utils import md5_hash
 from cex_src.cex import CEXProject
 from cex_src.cex.utils import to_dot as cex_to_dot
 
@@ -351,6 +348,41 @@ def _find_path_to_csv(apka, file, libs=None, reachable=False, disable_multilib=F
 
     fin.close()
 
+def _find_path_to_csv2(apka, file, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False):
+    if libs is None:
+        libs = apka.get_analyzed_libs()
+    else:
+        libs = apka.get_armv7_libs()
+    lib_hashes = list(map(lambda l: l.libhash, libs))
+
+    reachable_native_methods = set()
+    for method in apka.find_native_methods_implementations(lib_hashes, reachable):
+        reachable_native_methods.add(
+            (method.libpath.split("/")[-1], (method.offset - 0x400000) & 0xfffffffe)
+        )
+
+    fin = open(file, "r")
+    for line in fin:
+        line = line.strip()
+        if line == "":
+            continue
+
+        lib, offset, _, jni_desc = line.split(",")
+
+        # Java_native_name@libname.so+0xabcd
+        _, jni_liboff = jni_desc.split("@")
+        jni_lib, jni_off = jni_liboff.split("+")
+        jni_off = int(jni_off, 16) & 0xfffffffe
+        if (jni_lib, jni_off) not in reachable_native_methods:
+            # The source JNI method is not marked as reachable by our analysis
+            print("[!] Skipped path search on %s+%#x since native JNI method %s+%#x is not reachable for our analysis" % \
+                (lib, int(offset,16), jni_lib, jni_off))
+            continue
+
+        lib = os.path.basename(lib)
+        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_multilib, disable_angr, disable_ghidra, full_icfg_path)
+    fin.close()
+
 def _show_lib_dep_graph(apka):
     ldg = apka.build_lib_dependency_graph()
 
@@ -448,6 +480,10 @@ def main(args):
         _find_path_to_csv(
             apka, args.find_path_to_csv, libs, reachable_analysis, disable_multilib, disable_angr, disable_ghidra, full_icfg_path)
 
+    if args.find_path_to_csv2 is not None:
+        _find_path_to_csv2(
+            apka, args.find_path_to_csv2, libs, reachable_analysis, disable_multilib, disable_angr, disable_ghidra, full_icfg_path)
+
     if args.show_lib_dep_graph:
         _show_lib_dep_graph(apka)
 
@@ -477,6 +513,7 @@ if __name__=="__main__":
     parser.add_argument("--print-full-icfg-path", help="Print the full path in the iCFG when executing --find-path-*", action="store_true")
     parser.add_argument("--find-path-to", metavar="libpath.so@offset/name", help="Find path to native function", nargs="?")
     parser.add_argument("--find-path-to-csv", metavar="file.csv", help="Find path to the native functions specified in the CSV (lib.so,offset)", nargs="?")
+    parser.add_argument("--find-path-to-csv2", metavar="file.csv", help="Internal use only", nargs="?")
     parser.add_argument("--show-lib-dep-graph", help="Print the library dependency graph in dot to stdout", action="store_true")
 
     parser.add_argument("apk", help="The binary to analyze")
