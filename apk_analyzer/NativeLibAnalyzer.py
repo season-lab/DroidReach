@@ -650,7 +650,7 @@ class NativeLibAnalyzer(object):
         except TimeoutError:
             jni_angr = list()
         except Exception as e:
-            NativeLibAnalyzer.log.warning("Unknown error in _get_jni_functions_angr: " + str(e))
+            NativeLibAnalyzer.log.warning("Unknown error in _get_jni_functions_angr: " + repr(e))
             jni_angr = list()
 
         for class_name, method_name, args, addr in jni_angr:

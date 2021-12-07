@@ -222,7 +222,9 @@ def _gen_path(apka, java_method, cex_proj, native_graph, src_native, dst_native,
                     (binfo.name, insn.addr - binfo.min_addr, insn.addr, insn.mnemonic))
         return res
 
-def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False):
+def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False, jni_methods_whitelist=None):
+    jni_methods_whitelist = jni_methods_whitelist or set()
+
     lib, offset = what.split("@")
 
     try:
@@ -283,6 +285,9 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False
         print("OK (%.03f s)" % elapsed)
 
     for method in apka.find_native_methods_implementations(lib_hashes, reachable):
+        if (method.libhash, method.offset) not in jni_methods_whitelist:
+            continue
+
         print("[+] Checking path from native method %s %s @ %s %#x" % \
             (method.class_name, method.method_name, method.libpath, method.offset))
         if not (method.libhash == libhash or nx.has_path(ldg, method.libhash, libhash)):
@@ -355,11 +360,11 @@ def _find_path_to_csv2(apka, file, libs=None, reachable=False, disable_multilib=
         libs = apka.get_armv7_libs()
     lib_hashes = list(map(lambda l: l.libhash, libs))
 
-    reachable_native_methods = set()
-    for method in apka.find_native_methods_implementations(lib_hashes, reachable):
-        reachable_native_methods.add(
+    native_methods = dict()
+    for method in apka.find_native_methods_implementations(lib_hashes, False):
+        native_methods[
             (method.libpath.split("/")[-1], (method.offset - 0x400000) & 0xfffffffe)
-        )
+        ] = (method.libhash, method.offset)
 
     fin = open(file, "r")
     for line in fin:
@@ -373,14 +378,15 @@ def _find_path_to_csv2(apka, file, libs=None, reachable=False, disable_multilib=
         _, jni_liboff = jni_desc.split("@")
         jni_lib, jni_off = jni_liboff.split("+")
         jni_off = int(jni_off, 16) & 0xfffffffe
-        if (jni_lib, jni_off) not in reachable_native_methods:
-            # The source JNI method is not marked as reachable by our analysis
-            print("[!] Skipped path search on %s+%#x since native JNI method %s+%#x is not reachable for our analysis" % \
+        if (jni_lib, jni_off) not in native_methods:
+            # Native method not found... Strange!
+            print("[!] Skipped path search on %s+%#x since native JNI method %s+%#x was not found" % \
                 (lib, int(offset,16), jni_lib, jni_off))
             continue
 
+        jni_whitelist = set([native_methods[jni_lib, jni_off]])
         lib = os.path.basename(lib)
-        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_multilib, disable_angr, disable_ghidra, full_icfg_path)
+        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_multilib, disable_angr, disable_ghidra, full_icfg_path, jni_whitelist)
     fin.close()
 
 def _show_lib_dep_graph(apka):
