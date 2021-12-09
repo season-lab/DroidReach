@@ -43,7 +43,7 @@ class APKAnalyzer(object):
     #        ptrs and only use the API get_native_analyzer
 
     log = logging.getLogger("ap.APKAnalyzer")
-    log.setLevel(logging.INFO)
+    log.setLevel(logging.WARNING)
 
     tmp_dir = "/dev/shm/apk_analyzer_data"
 
