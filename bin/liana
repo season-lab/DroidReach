@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import networkx as nx
 import argparse
 import time
@@ -433,6 +434,9 @@ def main(args):
     if args.use_flowdroid:
         use_flowdroid = True
 
+    if args.verbose:
+        APKAnalyzer.log.setLevel(logging.INFO)
+
     apka = APKAnalyzer(apk_path, use_flowdroid=use_flowdroid)
     reachable_analysis = False
     libs               = None
@@ -519,6 +523,7 @@ if __name__=="__main__":
     parser.add_argument("--find-path-to-csv", metavar="file.csv", help="Find path to the native functions specified in the CSV (lib.so,offset)", nargs="?")
     parser.add_argument("--find-path-to-csv2", metavar="file.csv", help="Internal use only", nargs="?")
     parser.add_argument("--show-lib-dep-graph", help="Print the library dependency graph in dot to stdout", action="store_true")
+    parser.add_argument("--verbose", help="Verbose mode", action="store_true")
 
     parser.add_argument("apk", help="The binary to analyze")
 

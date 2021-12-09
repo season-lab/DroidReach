@@ -80,7 +80,7 @@ def dynamic_register_resolve(project, analysis_center):
         nativedroid_logger.info("JNI_OnLoad method not found.")
         return dict()
     else:
-        nativedroid_logger.info('Dynamic register resolution begins.')
+        nativedroid_logger.info('Dynamic register resolution begins on %s.' % project.loader.main_object.binary)
         state = project.factory.blank_state(addr=jni_on_load_symb.rebased_addr)
         java_vm = JNIInvokeInterface(project, analysis_center)
         state.regs.r0 = claripy.BVV(java_vm.ptr, project.arch.bits)

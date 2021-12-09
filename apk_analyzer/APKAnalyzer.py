@@ -468,7 +468,12 @@ class APKAnalyzer(object):
 
         if len(res) > 1 and resolve_clashes_with_angr:
             APKAnalyzer.log.info(f"executing angr fallback, len(res)={len(res)}")
-            angr_jnis = self.find_native_implementations_angr(method_name, class_name, args_str, lib_whitelist=lib_whitelist)
+            # Look only in the libraries where the clashing functions was found
+            angr_lib_whitelist = set()
+            for j in res:
+                angr_lib_whitelist.add(j.analyzer.libhash)
+            angr_jnis = self.find_native_implementations_angr(
+                method_name, class_name, args_str, lib_whitelist=angr_lib_whitelist)
             if len(angr_jnis) == 1:
                 res = angr_jnis
             APKAnalyzer.log.info(f"after angr fallback, len(res)={len(res)}")
