@@ -3212,10 +3212,10 @@ class JNINativeInterface(ExternObject):
         self._analysis_center = analysis_center
         self._construct()
         # Define JNINativeMethod Struct and then resolved in RegisterNatives SimProcedure.
-        angr.sim_type.define_struct('struct JNINativeMethod {const char* name;const char* signature;void* fnPtr;}')
-        angr.sim_type.parse_type('struct JNINativeMethod')
-        # jninativemthod_type = angr.types.parse_type("struct JNINativeMethod {const char* name; const char* signature; void* fnPtr; }")
-        # angr.types.register_types(jninativemthod_type )
+        # angr.sim_type.define_struct('struct JNINativeMethod {const char* name;const char* signature;void* fnPtr;}')
+        # angr.sim_type.parse_type('struct JNINativeMethod')
+        jninativemthod_type = angr.types.parse_type("struct JNINativeMethod {const char* name; const char* signature; void* fnPtr; }")
+        angr.types.register_types(jninativemthod_type )
 
     def _construct(self):
         # allocate memory for the fake JNINativeInterface struct

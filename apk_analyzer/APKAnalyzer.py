@@ -466,7 +466,7 @@ class APKAnalyzer(object):
 
                     res.append(jni_desc)
 
-        if len(res) > 1 and resolve_clashes_with_angr:
+        if (len(res) > 1 and resolve_clashes_with_angr) or len(res) == 0:
             angr_jnis = self.find_native_implementations_angr(method_name, class_name, args_str, lib_whitelist=lib_whitelist)
             if len(angr_jnis) == 1:
                 res = angr_jnis

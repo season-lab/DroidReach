@@ -223,8 +223,6 @@ def _gen_path(apka, java_method, cex_proj, native_graph, src_native, dst_native,
         return res
 
 def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False, jni_methods_whitelist=None):
-    jni_methods_whitelist = jni_methods_whitelist or set()
-
     lib, offset = what.split("@")
 
     try:
@@ -285,7 +283,7 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False
         print("OK (%.03f s)" % elapsed)
 
     for method in apka.find_native_methods_implementations(lib_hashes, reachable):
-        if (method.libhash, method.offset) not in jni_methods_whitelist:
+        if jni_methods_whitelist is not None and (method.libhash, method.offset) not in jni_methods_whitelist:
             continue
 
         print("[+] Checking path from native method %s %s @ %s %#x" % \
