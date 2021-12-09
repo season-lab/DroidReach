@@ -77,7 +77,7 @@ def dynamic_register_resolve(project, analysis_center):
     """
     jni_on_load_symb = project.loader.main_object.get_symbol('JNI_OnLoad')
     if jni_on_load_symb is None:
-        nativedroid_logger.error("JNI_OnLoad method doesn't exist. It should be some tricks that obfuscate the symbol.")
+        nativedroid_logger.info("JNI_OnLoad method not found.")
         return dict()
     else:
         nativedroid_logger.info('Dynamic register resolution begins.')
