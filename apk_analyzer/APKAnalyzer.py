@@ -43,7 +43,7 @@ class APKAnalyzer(object):
     #        ptrs and only use the API get_native_analyzer
 
     log = logging.getLogger("ap.APKAnalyzer")
-    log.setLevel(logging.WARNING)
+    log.setLevel(logging.INFO)
 
     tmp_dir = "/dev/shm/apk_analyzer_data"
 
@@ -466,10 +466,12 @@ class APKAnalyzer(object):
 
                     res.append(jni_desc)
 
-        if (len(res) > 1 and resolve_clashes_with_angr) or len(res) == 0:
+        if len(res) > 1 and resolve_clashes_with_angr:
+            APKAnalyzer.log.info(f"executing angr fallback, len(res)={len(res)}")
             angr_jnis = self.find_native_implementations_angr(method_name, class_name, args_str, lib_whitelist=lib_whitelist)
             if len(angr_jnis) == 1:
                 res = angr_jnis
+            APKAnalyzer.log.info(f"after angr fallback, len(res)={len(res)}")
 
         APKAnalyzer.log.info(f"native implementation: {res}")
         return res
