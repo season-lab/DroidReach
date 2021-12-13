@@ -11,6 +11,9 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from apk_analyzer import APKAnalyzer
 from cex_src.cex import CEXProject
 from cex_src.cex.utils import to_dot as cex_to_dot
+from cex_src.cex.utils import to_json as cex_to_json
+
+save_graphs = False
 
 cex_project_cache = dict()
 
@@ -223,6 +226,19 @@ def _gen_path(apka, java_method, cex_proj, native_graph, src_native, dst_native,
                     (binfo.name, insn.addr - binfo.min_addr, insn.addr, insn.mnemonic))
         return res
 
+def _save_graph(apka, graph, addr, is_cg):
+    if not save_graphs:
+        return
+
+    out_dir = os.path.join(apka.wdir, "callgraphs" if is_cg else "icfgs")
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+
+    out_filename = os.path.join(out_dir, "graph_%#x.json" % addr)
+    if not os.path.exists(out_filename):
+        with open(out_filename, "w") as fout:
+            fout.write(cex_to_json(graph))
+
 def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False, jni_methods_whitelist=None):
     lib, offset = what.split("@")
 
@@ -320,6 +336,8 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False
             g = proj.get_icfg(src_addr)
         elapsed = time.time() - start
         print(" OK (n_nodes: %d, n_edges: %d, elapsed: %.03f s)" % (len(g.nodes), len(g.edges), elapsed))
+
+        _save_graph(apka, g, src_addr, not full_icfg_path)
 
         binfo = proj.get_bininfo(lib)
         if binfo is None:
@@ -447,6 +465,9 @@ def main(args):
 
     if args.reachable:
         reachable_analysis = True
+    if args.save_graphs:
+        global save_graphs
+        save_graphs = True
     if not args.all_archs:
         libs = apka.get_armv7_libs()
         libs = list(map(lambda l: l.libhash, libs))
@@ -524,6 +545,7 @@ if __name__=="__main__":
     parser.add_argument("--find-path-to-csv2", metavar="file.csv", help="Internal use only", nargs="?")
     parser.add_argument("--show-lib-dep-graph", help="Print the library dependency graph in dot to stdout", action="store_true")
     parser.add_argument("--verbose", help="Verbose mode", action="store_true")
+    parser.add_argument("--save-graphs", help="Save graphs (debug mode)", action="store_true")
 
     parser.add_argument("apk", help="The binary to analyze")
 
