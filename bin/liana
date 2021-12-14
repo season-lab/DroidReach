@@ -356,7 +356,7 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False
                 print(" -> %s" % p)
             break
         else:
-            print("[!] No path (callgraph)")
+            print("[!] No path")
 
 def _find_path_to_csv(apka, file, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False):
     fin = open(file, "r")
@@ -367,7 +367,7 @@ def _find_path_to_csv(apka, file, libs=None, reachable=False, disable_multilib=F
 
         lib, offset = line.split(",")
         lib = os.path.basename(lib)
-        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_multilib, disable_angr, disable_ghidra, full_icfg_path)
+        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_multilib, disable_angr, disable_ghidra, full_icfg_path=True)
 
     fin.close()
 
