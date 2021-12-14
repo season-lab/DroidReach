@@ -166,12 +166,12 @@ def _find_vtable(apka, producer, libs=None, reachable=False):
     else:
         print("[!] vtable not found")
 
-def _gen_path(apka, java_method, cex_proj, native_graph, src_native, dst_native, full_icfg_path):
+def _gen_path(apka, java_method, cex_proj, native_graph, src_native, dst_native, full_icfg_path, skip_java=False):
     res = list()
     java_path = apka.get_path_to_native_method(java_method)
     native_path = nx.shortest_path(native_graph, src_native, dst_native)
     if not full_icfg_path:
-        if java_path is not None:
+        if not skip_java and java_path is not None:
             for j in java_path:
                 res.append("%s" % j)
         else:
@@ -183,9 +183,9 @@ def _gen_path(apka, java_method, cex_proj, native_graph, src_native, dst_native,
             res.append("%s @ %s+%#x" % (data.name, binfo.name, v - binfo.min_addr))
         return res
     else:
-        java_cfgs = apka.get_cfgs()
-        java_cg = apka.get_callgraph()
-        if java_path is not None:
+        if not skip_java and java_path is not None:
+            java_cfgs = apka.get_cfgs()
+            java_cg = apka.get_callgraph()
             path_g = nx.path_graph(java_path)
             for src, dst in path_g.edges:
                 assert src in java_cfgs # CFG not found
@@ -240,7 +240,7 @@ def _save_graph(apka, graph, libpath, addr, is_cg):
         with open(out_filename, "w") as fout:
             fout.write(cex_to_json(graph))
 
-def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False, jni_methods_whitelist=None):
+def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False, jni_methods_whitelist=None, skip_java=False):
     lib, offset = what.split("@")
 
     try:
@@ -350,7 +350,7 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False
         if rebased_off not in g.nodes:
             print("[!] No path (addr not in graph)")
         elif nx.has_path(g, src_addr, rebased_off):
-            path = _gen_path(apka, method, proj, g, src_addr, rebased_off, full_icfg_path)
+            path = _gen_path(apka, method, proj, g, src_addr, rebased_off, full_icfg_path, skip_java)
             print("[+] Path found:")
             for p in path:
                 print(" -> %s" % p)
@@ -404,7 +404,7 @@ def _find_path_to_csv2(apka, file, libs=None, reachable=False, disable_multilib=
 
         jni_whitelist = set([native_methods[jni_lib, jni_off]])
         lib = os.path.basename(lib)
-        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_multilib, disable_angr, disable_ghidra, full_icfg_path=True, jni_methods_whitelist=jni_whitelist)
+        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_multilib, disable_angr, disable_ghidra, full_icfg_path=True, jni_methods_whitelist=jni_whitelist, skip_java=True)
     fin.close()
 
 def _show_lib_dep_graph(apka):
