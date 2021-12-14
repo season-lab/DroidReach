@@ -226,7 +226,7 @@ def _gen_path(apka, java_method, cex_proj, native_graph, src_native, dst_native,
                     (binfo.name, insn.addr - binfo.min_addr, insn.addr, insn.mnemonic))
         return res
 
-def _save_graph(apka, graph, addr, is_cg):
+def _save_graph(apka, graph, libpath, addr, is_cg):
     if not save_graphs:
         return
 
@@ -234,7 +234,8 @@ def _save_graph(apka, graph, addr, is_cg):
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
 
-    out_filename = os.path.join(out_dir, "graph_%#x.json" % addr)
+    libname = os.path.basename(libpath)
+    out_filename = os.path.join(out_dir, "graph_%s+%#x.json" % (libname, addr))
     if not os.path.exists(out_filename):
         with open(out_filename, "w") as fout:
             fout.write(cex_to_json(graph))
@@ -337,7 +338,7 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False
         elapsed = time.time() - start
         print(" OK (n_nodes: %d, n_edges: %d, elapsed: %.03f s)" % (len(g.nodes), len(g.edges), elapsed))
 
-        _save_graph(apka, g, src_addr, not full_icfg_path)
+        _save_graph(apka, g, main_lib, src_addr, not full_icfg_path)
 
         binfo = proj.get_bininfo(lib)
         if binfo is None:
