@@ -26,9 +26,9 @@ RUN cd /opt                                               && \
     ninja -C build install
 
 # Ghidra
-RUN cd /opt                                                      && \
-    wget https://ghidra-sre.org/ghidra_9.2.3_PUBLIC_20210325.zip && \
-    unzip ghidra_9.2.3_PUBLIC_20210325.zip                       && \
+RUN cd /opt                                                                                                                     && \
+    wget https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_9.2.3_build/ghidra_9.2.3_PUBLIC_20210325.zip && \
+    unzip ghidra_9.2.3_PUBLIC_20210325.zip                                                                                      && \
     rm ghidra_9.2.3_PUBLIC_20210325.zip
 
 ENV GHIDRA_HOME=/opt/ghidra_9.2.3_PUBLIC
