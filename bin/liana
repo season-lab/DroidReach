@@ -220,10 +220,9 @@ def _gen_path(apka, java_method, cex_proj, native_graph, src_native, dst_native,
         for v in native_path:
             data  = native_graph.nodes[v]["data"]
             binfo = cex_proj.get_bin_containing(v)
-            assert binfo is not None
             for insn in data.insns:
                 res.append("[%s+0x%04x] 0x%08x: %s" % \
-                    (binfo.name, insn.addr - binfo.min_addr, insn.addr, insn.mnemonic))
+                    (binfo.name if binfo is not None else "unk", insn.addr - (binfo.min_addr if binfo is not None else 0), insn.addr, insn.mnemonic))
         return res
 
 def _save_graph(apka, graph, libpath, addr, is_cg):
