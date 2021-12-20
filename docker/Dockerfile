@@ -65,6 +65,9 @@ RUN pip install networkx==2.5.1 \
                 pydot==1.4.2    \
                 pyyaml
 
+# Angr fix (comment bugged debug print)
+RUN sed -i '1619,1622 {s/^/#/}' /home/ubuntu/.local/lib/python3.8/site-packages/angr/analyses/cfg/cfg_emulated.py
+
 # Androguard
 RUN git clone https://github.com/androguard/androguard.git /tmp/androguard && \
     cd /tmp/androguard                                                     && \
