@@ -63,7 +63,8 @@ RUN pip install networkx==2.5.1 \
                 angr==9.0.8021  \
                 rzpipe          \
                 pydot==1.4.2    \
-                pyyaml
+                pyyaml          \
+                psutil
 
 # Angr fix (comment bugged debug print)
 RUN sed -i '1619,1622 {s/^/#/}' /home/ubuntu/.local/lib/python3.8/site-packages/angr/analyses/cfg/cfg_emulated.py

@@ -436,6 +436,9 @@ def _configure_angr_ghidra(args):
     if args.angr_timeout:
         angr_emu.timeout = int(args.angr_timeout)
 
+    if args.angr_max_memory:
+        angr_emu.max_memory = int(args.angr_max_memory) * 1024 * 1024
+
     if args.angr_max_calldepth:
         angr_emu.calldepth = int(args.angr_max_calldepth)
 
@@ -533,8 +536,9 @@ if __name__=="__main__":
     parser.add_argument("--disable-multilib", help="Disable the reasoning on multiple libraries", action="store_true")
     parser.add_argument("--disable-angr", help="Disable Angr plugin", action="store_true")
     parser.add_argument("--disable-ghidra", help="Disable Ghidra plugin", action="store_true")
-    parser.add_argument("--ghidra-timeout", help="Set timeout for Ghidra on a single binary (default 20 min)", metavar="sec", nargs="?")
-    parser.add_argument("--angr-timeout", help="Set timeout for Angr on a iCFG (default 30 min)", metavar="sec", nargs="?")
+    parser.add_argument("--ghidra-timeout", help="Set timeout for Ghidra on a single binary [seconds] (default 20 min)", metavar="sec", nargs="?")
+    parser.add_argument("--angr-timeout", help="Set timeout for Angr on a iCFG [seconds] (default 30 min)", metavar="sec", nargs="?")
+    parser.add_argument("--angr-max-memory", help="Set maximum memory usage for Angr on a iCFG [MiB] (default None)", metavar="sec", nargs="?")
     parser.add_argument("--angr-max-calldepth", help="Set maximum calldepth for Angr (default 5)", metavar="val", nargs="?")
     parser.add_argument("--angr-ctx-sensitivity", help="Set context sensitivity for Angr (default 1)", metavar="val", nargs="?")
     parser.add_argument("--angr-bb-iterations", help="Set maximum iterations on a basic block for Angr (default 1)", metavar="val", nargs="?")
