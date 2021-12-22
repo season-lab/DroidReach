@@ -403,7 +403,7 @@ def _find_path_to_csv2(apka, file, libs=None, reachable=False, disable_multilib=
 
         jni_whitelist = set([native_methods[jni_lib, jni_off]])
         lib = os.path.basename(lib)
-        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_multilib, disable_angr, disable_ghidra, full_icfg_path=True, jni_methods_whitelist=jni_whitelist, skip_java=True)
+        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_multilib, disable_angr, disable_ghidra, full_icfg_path=False, jni_methods_whitelist=jni_whitelist, skip_java=True)
     fin.close()
 
 def _show_lib_dep_graph(apka):
