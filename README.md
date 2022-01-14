@@ -1,6 +1,6 @@
 # DroidReach
 
-This repository will host the source code of the DroidReach after the acceptance of the paper.
+This repository will host the source code of DroidReach after the acceptance of the paper.
 
 ## Experimental data
 
