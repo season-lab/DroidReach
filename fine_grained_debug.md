@@ -1,4 +1,4 @@
-# Fine-Grained Debug
+# Fine-grained analysis: debugging false negatives
 
 | apk                               | debug brief |
 |-----------------------------------|-------------|
