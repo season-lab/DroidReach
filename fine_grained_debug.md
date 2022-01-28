@@ -4,10 +4,10 @@
 |-----------------------------------|-------------|
 | com.sec.android.easyMover         | -           |
 | com.jb.zcamera                    | -           |
-| com.mi.android.globalFileexplorer | One edge is lost due to an indirect jmp not resolved by angr. Some edges are lost in angr due to the calldepth. |
-| com.space.cleaner.smart.tool      | Some indirect calls are resolved by angr (e.g. libun7zip.so+0x303c -> libun7zip.so+0x633c). Some destinations are not found by angr due to calldepth. |
+| com.mi.android.globalFileexplorer | One edge is lost due to an indirect jump not resolved by angr. Some edges are lost in angr due to the calldepth. |
+| com.space.cleaner.smart.tool      | Some indirect calls are resolved by angr (e.g. `libun7zip.so+0x303c` -> `libun7zip.so+0x633c`). Some destinations are not found by angr due to calldepth. |
 | com.soundcloud.android            | Indirect calls not resolved by angr. Angr looses some edges due to the maximum calldepth. |
-| video.like                        | Due to nested libs, Ghidra looses some edges. Some indirect jmps are not resolved by angr (e.g., libfiletransfer.so+0x39606). |
+| video.like                        | Due to nested libs, Ghidra looses some edges. Some indirect jumps are not resolved by angr (e.g., `libfiletransfer.so+0x39606`). |
 | com.zentertain.photocollage       | Due to nested libs, Ghidra looses some edges. Ghidra fails in detecting correctly thumb mode in some cases in libaviary_native2.so. Some indirect jmps are not resolved by angr (e.g., libencoders.so+0x26406). |
 | com.picsart.studio                | Angr misses some targets due to calldepth. Ghidra (erroeusly) detects some functions as not returning (e.g., libpicore.so+0x271360, losing the (fallthrough) edge libpicore.so+0x2dd1d8 -> libpicore.so+0x2dd1da). |
 | shareit.lite                      | Angr misses some targets due to calldepth. Some indirect calls are not resolved (e.g., libstp.so+0x50238). |
