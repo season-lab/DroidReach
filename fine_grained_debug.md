@@ -8,8 +8,8 @@
 | com.space.cleaner.smart.tool      | Some indirect calls are resolved by angr (e.g. `libun7zip.so+0x303c` -> `libun7zip.so+0x633c`). Some destinations are not found by angr due to calldepth. |
 | com.soundcloud.android            | Indirect calls not resolved by angr. Angr looses some edges due to the maximum calldepth. |
 | video.like                        | Due to nested libs, Ghidra looses some edges. Some indirect jumps are not resolved by angr (e.g., `libfiletransfer.so+0x39606`). |
-| com.zentertain.photocollage       | Due to nested libs, Ghidra looses some edges. Ghidra fails in detecting correctly thumb mode in some cases in libaviary_native2.so. Some indirect jmps are not resolved by angr (e.g., libencoders.so+0x26406). |
-| com.picsart.studio                | Angr misses some targets due to calldepth. Ghidra (erroeusly) detects some functions as not returning (e.g., libpicore.so+0x271360, losing the (fallthrough) edge libpicore.so+0x2dd1d8 -> libpicore.so+0x2dd1da). |
+| com.zentertain.photocollage       | Due to nested libs, Ghidra looses some edges. Ghidra fails in detecting correctly thumb mode in some cases in `libaviary_native2.so`. Some indirect jumps are not resolved by angr (e.g., `libencoders.so+0x26406`). |
+| com.picsart.studio                | Angr misses some targets due to calldepth. Ghidra (erroeusly) detects some functions as not returning (e.g., `libpicore.so+0x271360`, losing the (fallthrough) edge `libpicore.so+0x2dd1d8` -> `libpicore.so+0x2dd1da`). |
 | shareit.lite                      | Angr misses some targets due to calldepth. Some indirect calls are not resolved (e.g., libstp.so+0x50238). |
 | com.imangi.templerun              | Due to nested libs, Ghidra looses some edges. Some targets are called through callbacks (e.g., ASensorManager_createEventQueue, mono_add_internal_call). |
 | com.amazon.mp3                    | Due to nested libs, Ghidra looses some edges. Angr resolves some indirect jmps (e.g., libdmengine.so+0x5e9718 -> libdmengine.so+0x10054c). Other indirect jmps are not resolved. |
