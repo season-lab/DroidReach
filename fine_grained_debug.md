@@ -15,5 +15,5 @@
 | com.amazon.mp3                    | Due to nested libs, Ghidra looses some edges. Angr resolves some indirect jmps (e.g., `libdmengine.so+0x5e9718` -> `libdmengine.so+0x10054c`). Other indirect jmps are not resolved. |
 | com.cam001.selfie                 | Due to nested libs, Ghidra looses some edges. Some targets are not found due to indirect calls not resolved by angr (e.g., `libFacialOutline.so+0x24a88`), some others due to calls through `pthread_once` (support could be added but it still at a very deep calldepth). |
 | com.tripadvisor.tripadvisor       | Angr crashes when analyzing one lib (e.g., during the analysis of `libtdm-5.0-91-jni.so+0x405b69`). Some targets are missed due to indirect jmps. |
-| com.yodo1.crossyroad              | The application uses a custom pattern for loading some library (see `dlopen` and `dlsym` over `libil2cpp.so`). Support for custom loader could be added to handle these scenarios. |
+| com.yodo1.crossyroad              | The application uses a custom pattern for loading some libraries (see `dlopen` and `dlsym` over `libil2cpp.so`). Support for custom loader could be added to handle these scenarios. |
 | com.king.candycrushjellysaga      | Indirect calls through global context initialized by previous calls (jni function is not stateless) |
