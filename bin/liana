@@ -424,6 +424,51 @@ def _show_lib_dep_graph(apka):
         print("\t\"%s\" -> \"%s\";" % (src, dst))
     print("}")
 
+def _full_analysis(apka, libs, disable_angr, disable_ghidra, disable_multilib, reachable_analysis):
+    if libs is None:
+        libs = apka.get_analyzed_libs()
+    else:
+        libs = apka.get_armv7_libs()
+    lib_hashes = list(map(lambda l: l.libhash, libs))
+
+    methods = apka.find_native_methods_implementations(lib_hashes, reachable_analysis)
+
+    mapping_filename = os.path.join(apka.wdir, "jni-mappings.csv")
+    mapping_file = open(mapping_filename, "w")
+    for m in methods:
+        mapping_file.write("%s, %s, %s, %s, %#x\n" % \
+            (m.class_name, m.method_name, m.args_str, m.libpath, m.offset))
+    mapping_file.close()
+
+    for method in methods:
+        main_lib = method.libpath
+        if not disable_multilib:
+            other_libs = list(map(lambda l: l.libpath, filter(lambda l: l.libpath != method.libpath, libs)))
+        else:
+            other_libs = list()
+
+        src_addr = method.offset & 0xfffffffe
+
+        print("[+] Building the graph of method %s.%s" % (method.class_name, method.method_name))
+        plugins = []
+        if not disable_ghidra:
+            plugins.append("Ghidra")
+        if not disable_angr:
+            plugins.append("AngrEmulated")
+
+        if method.libhash in cex_project_cache:
+            proj = cex_project_cache[method.libhash]
+        else:
+            proj = CEXProject(main_lib, other_libs, plugins=plugins)
+            cex_project_cache[method.libhash] = proj
+        start = time.time()
+        g = proj.get_callgraph(src_addr)
+        elapsed = time.time() - start
+        print("[+] OK (n_nodes: %d, n_edges: %d, elapsed: %.03f s)" % (len(g.nodes), len(g.edges), elapsed))
+
+        _save_graph(apka, g, main_lib, src_addr, True)
+
+
 def _configure_angr_ghidra(args):
     angr_emu = CEXProject.pm.get_plugin_by_name("AngrEmulated")
     angr_emu.use_timeout_for_cfg = True
@@ -492,6 +537,11 @@ def main(args):
 
     _configure_angr_ghidra(args)
 
+    if args.full_analysis:
+        save_graphs = True
+        _full_analysis(apka, libs, disable_angr, disable_ghidra, disable_multilib, reachable_analysis)
+        return 0
+
     if args.print_native_functions:
         _print_native_functions(apka, libs, reachable_analysis)
 
@@ -550,6 +600,7 @@ if __name__=="__main__":
     parser.add_argument("--show-lib-dep-graph", help="Print the library dependency graph in dot to stdout", action="store_true")
     parser.add_argument("--verbose", help="Verbose mode", action="store_true")
     parser.add_argument("--save-graphs", help="Save graphs (debug mode)", action="store_true")
+    parser.add_argument("--full-analysis", help="Run the complete analysis (slow)", action="store_true")
 
     parser.add_argument("apk", help="The binary to analyze")
 
