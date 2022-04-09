@@ -4,6 +4,7 @@ import logging
 import networkx as nx
 import argparse
 import time
+import json
 import sys
 import os
 
@@ -225,7 +226,7 @@ def _gen_path(apka, java_method, cex_proj, native_graph, src_native, dst_native,
                     (binfo.name if binfo is not None else "unk", insn.addr - (binfo.min_addr if binfo is not None else 0), insn.addr, insn.mnemonic))
         return res
 
-def _save_graph(apka, graph, libpath, addr, is_cg):
+def _save_graph(apka, proj, graph, libpath, addr, is_cg):
     if not save_graphs:
         return
 
@@ -236,8 +237,18 @@ def _save_graph(apka, graph, libpath, addr, is_cg):
     libname = os.path.basename(libpath)
     out_filename = os.path.join(out_dir, "graph_%s+%#x.json" % (libname, addr))
     if not os.path.exists(out_filename):
+        bin_info = list()
+        for b in proj.get_bins():
+            bin_info.append({
+                "path": b.path,
+                "min_addr": b.min_addr,
+                "max_addr": b.max_addr
+            })
         with open(out_filename, "w") as fout:
-            fout.write(cex_to_json(graph))
+            fout.write("{\n\t\"mappings\": %s,\n\t\"nodes\": %s\n}\n" % (
+                json.dumps(bin_info),
+                cex_to_json(graph)
+            ))
 
 def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False, jni_methods_whitelist=None, skip_java=False):
     lib, offset = what.split("@")
@@ -337,7 +348,7 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False
         elapsed = time.time() - start
         print(" OK (n_nodes: %d, n_edges: %d, elapsed: %.03f s)" % (len(g.nodes), len(g.edges), elapsed))
 
-        _save_graph(apka, g, main_lib, src_addr, not full_icfg_path)
+        _save_graph(apka, proj, g, main_lib, src_addr, not full_icfg_path)
 
         binfo = proj.get_bininfo(lib)
         if binfo is None:
@@ -466,7 +477,7 @@ def _full_analysis(apka, libs, disable_angr, disable_ghidra, disable_multilib, r
         elapsed = time.time() - start
         print("[+] OK (n_nodes: %d, n_edges: %d, elapsed: %.03f s)" % (len(g.nodes), len(g.edges), elapsed))
 
-        _save_graph(apka, g, main_lib, src_addr, True)
+        _save_graph(apka, proj, g, main_lib, src_addr, True)
 
 
 def _configure_angr_ghidra(args):
