@@ -445,6 +445,8 @@ def _full_analysis(apka, libs, disable_angr, disable_ghidra, disable_multilib, r
     methods = apka.find_native_methods_implementations(lib_hashes, reachable_analysis)
 
     if not disable_ghidra:
+        ghidra = CEXProject.pm.get_plugin_by_name("Ghidra")
+
         jni_methods = dict()
         for method in methods:
             if method.libpath not in jni_methods:
