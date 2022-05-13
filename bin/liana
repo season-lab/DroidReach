@@ -444,6 +444,20 @@ def _full_analysis(apka, libs, disable_angr, disable_ghidra, disable_multilib, r
 
     methods = apka.find_native_methods_implementations(lib_hashes, reachable_analysis)
 
+    if not disable_ghidra:
+        jni_methods = dict()
+        for method in methods:
+            if method.libpath not in jni_methods:
+                jni_methods[method.libpath] = list()
+            jni_methods[method.libpath].append(method.offset)
+
+        print("[+] Defining JNI functions in Ghidra... ", end="")
+        start = time.time()
+        for jni_lib in jni_methods:
+            ghidra.define_functions(jni_lib, jni_methods[jni_lib])
+        elapsed = time.time() - start
+        print("OK (%.03f s)" % elapsed)
+
     mapping_filename = os.path.join(apka.wdir, "jni-mappings.csv")
     mapping_file = open(mapping_filename, "w")
     for m in methods:
