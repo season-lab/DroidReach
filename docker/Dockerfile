@@ -17,11 +17,11 @@ RUN apt-get install -y      \
 
 RUN pip install meson
 
-# Rizin 0.4.0-git
+# Rizin
 RUN cd /opt                                               && \
     git clone https://github.com/rizinorg/rizin.git       && \
     cd /opt/rizin                                         && \
-    git checkout 81964a20f3cbf9a24ac417ba0667cdbad224555a && \
+    git checkout 3752e24b989b45d30868624f4a973fef01466ad6 && \
     meson build                                           && \
     ninja -C build install
 
@@ -54,8 +54,9 @@ RUN echo "ubuntu ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/ubuntu && \
 USER    ubuntu
 WORKDIR /home/ubuntu
 
+ENV PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 ENV PYTHONUNBUFFERED=1
-ENV PATH=$PATH:/home/ubuntu/.local/bin
+ENV PATH=$PATH:/home/ubuntu/.local/bin:/home/ubuntu/droidreach/bin
 
 # Other dependencies
 RUN pip install networkx==2.5.1 \

@@ -1,0 +1,635 @@
+#!/usr/bin/env python3
+
+import logging
+import networkx as nx
+import argparse
+import time
+import json
+import sys
+import os
+
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from apk_analyzer import APKAnalyzer
+from cex_src.cex import CEXProject
+from cex_src.cex.utils import to_dot as cex_to_dot
+from cex_src.cex.utils import to_json as cex_to_json
+
+save_graphs = False
+
+cex_project_cache = dict()
+
+def print_err(*msg):
+    sys.stderr.write(" ".join(map(str, msg) + "\n"))
+
+def _show_cfg_of(apka, libs, thing):
+    def show_native_cfg(libname, offset):
+        analyzed_lib = None
+        for l in libs:
+            if apka.get_libname_from_hash(l) == libname:
+                analyzed_lib = apka.get_native_analyzer(l)
+                break
+        if analyzed_lib is None:
+            print_err("[+] Unable to find library %s" % libname)
+            return
+
+        try:
+            offset = int(offset, 16)
+        except:
+            name = offset
+            offset = None
+
+        if offset is None:
+            rz = analyzed_lib._open_rz()
+            rz.cmd("aa")
+            addr = rz.cmd("afl~%s[0]" % name).strip()
+
+            rz.quit()
+            if addr == "":
+                print_err("[+] Unable to find function %s" % name)
+                return
+            offset = int(addr, 16)
+
+        proj = CEXProject(analyzed_lib.libpath, plugins=["Ghidra", "AngrEmulated"])
+        cfg = proj.get_cfg(offset+0x400000)
+        print(cex_to_dot(cfg))
+
+    def show_java_cfg(method_name):
+        cfgs = apka.get_cfgs()
+        if method_name not in cfgs:
+            print_err("[+] Unable to find CFG of method %s" % method_name)
+            return
+        cfg = cfgs[method_name]
+        print("digraph {\n\tnode [shape=box];")
+        print("\tgraph [fontname = \"monospace\"];")
+        print("\tnode  [fontname = \"monospace\"];")
+        print("\tedge  [fontname = \"monospace\"];")
+
+        for n in cfg.nodes:
+            print("\t\"%s\" [label=\"%s\l\"];" % (n, cfg.nodes[n]["label"].replace("\n", "\l")))
+        print()
+
+        for src, dst in cfg.edges:
+            print("\t\"%s\" -> \"%s\";" % (src, dst))
+        print("}")
+
+    libname, offset = None, None
+    try:
+        libname, offset = thing.split("@")
+    except:
+        pass
+    if libname is not None:
+        show_native_cfg(libname, offset)
+    else:
+        show_java_cfg(thing)
+
+def _print_native_functions(apka, libs=None, reachable=False):
+    methods = None
+    if reachable:
+        methods = apka.find_reachable_native_methods()
+    else:
+        methods = apka.find_native_methods()
+
+    for class_name, method_name, args_str in methods:
+        print(" %s %s %s" % (class_name, method_name, args_str))
+        native_impls = apka.find_native_implementations(method_name, class_name, args_str, libs)
+        if len(native_impls) == 0:
+            print("   * no implementation found")
+            continue
+
+        for native_impl in native_impls:
+            print("   * %s\t%#x" % (native_impl.analyzer.libpath, native_impl.offset))
+
+def _find_producer(apka, consumer, libs=None, reachable=False):
+    class_name  = "L" + "/".join(consumer.split(".")[:-1]) + ";"
+    method_name = consumer.split(".")[-1]
+
+    consumer_impl = None
+    for method in apka.find_native_methods_implementations(libs, reachable):
+        if method.class_name == class_name and method.method_name == method_name:
+            consumer_impl = method
+            break
+
+    if consumer_impl is None:
+        print("[+] Unable to find method", consumer)
+        return
+
+    print("[+] Finding producer for method", consumer)
+    maybe_producers = apka.find_potential_producers(consumer_impl, lib_whitelist=libs, reachable=False)
+    print("[+] Found %d possible producers" % len(maybe_producers))
+    for maybe_producer in maybe_producers:
+        print(maybe_producer)
+        vtable = apka.vtable_from_jlong_ret(maybe_producer, use_angr=False)
+        if vtable is not None:
+            print("[!] Producer: %s %s %s @ %s %#x - vtable %#x" % \
+                (maybe_producer.class_name, maybe_producer.method_name, maybe_producer.args_str, maybe_producer.libpath, maybe_producer.offset, vtable))
+            break
+
+def _check_consumer(apka, consumer, libs=None):
+    class_name  = "L" + "/".join(consumer.split(".")[:-1]) + ";"
+    method_name = consumer.split(".")[-1]
+
+    consumer_impl = None
+    for method in apka.find_native_methods_implementations(libs):
+        if method.class_name == class_name and method.method_name == method_name:
+            consumer_impl = method
+            break
+
+    if consumer_impl is None:
+        print("[+] Unable to find method", consumer)
+        return
+
+    print("[+] Checking if", consumer, "is a consumer")
+    args = apka.jlong_as_cpp_obj(consumer_impl, use_angr=False)
+    print("[!] The consumer uses the args %s as jlong pointers" % str(args))
+
+def _find_vtable(apka, producer, libs=None, reachable=False):
+    class_name  = "L" + "/".join(producer.split(".")[:-1]) + ";"
+    method_name = producer.split(".")[-1]
+
+    angr_emu = CEXProject.pm.get_plugin_by_name("AngrEmulated")
+
+    producer_impl = None
+    for method in apka.find_native_methods_implementations(libs, reachable):
+        if method.class_name == class_name and method.method_name == method_name:
+            producer_impl = method
+            break
+
+    if producer_impl is None:
+        print("[+] Unable to find method", producer)
+        return
+
+    print(producer_impl)
+    print("[+] Finding vtable for producer", producer, "@", hex(producer_impl.offset))
+    angr_emu.use_timeout_for_cfg = True
+    vtable = apka.vtable_from_jlong_ret(producer_impl, use_angr=False)
+    if vtable is not None:
+        print("[!] vtable:", hex(vtable))
+    else:
+        print("[!] vtable not found")
+
+def _gen_path(apka, java_method, cex_proj, native_graph, src_native, dst_native, full_icfg_path, skip_java=False):
+    res = list()
+    java_path = apka.get_path_to_native_method(java_method) if not skip_java else None
+    native_path = nx.shortest_path(native_graph, src_native, dst_native)
+    if not full_icfg_path:
+        if java_path is not None:
+            for j in java_path:
+                res.append("%s" % j)
+        else:
+            res.append("%s %s" % (java_method.class_name, java_method.method_name))
+        for v in native_path:
+            data  = native_graph.nodes[v]["data"]
+            binfo = cex_proj.get_bin_containing(v)
+            assert binfo is not None
+            res.append("%s @ %s+%#x" % (data.name, binfo.name, v - binfo.min_addr))
+        return res
+    else:
+        if java_path is not None:
+            java_cfgs = apka.get_cfgs()
+            java_cg = apka.get_callgraph()
+            path_g = nx.path_graph(java_path)
+            for src, dst in path_g.edges:
+                assert src in java_cfgs # CFG not found
+                src_cfg = java_cfgs[src]
+                callsite = list(java_cg.get_edge_data(src, dst).values())[0]["offset"]
+
+                root_block = None
+                callsite_block = None
+                for node_id in src_cfg.nodes:
+                    node = src_cfg.nodes[node_id]
+                    if node_id == 0:
+                        root_block = node_id
+                    if callsite in node["ids"]:
+                        callsite_block = (node_id, node["ids"].index(callsite))
+                assert callsite_block is not None # Callsite not found
+                assert root_block is not None # Root not found
+
+                cfg_path = nx.shortest_path(src_cfg, root_block, callsite_block[0])
+                for node_id in cfg_path:
+                    node = src_cfg.nodes[node_id]
+                    insns = node["label"].replace("\n\n", "\n").split("\n")
+                    for i, insn in enumerate(insns):
+                        if node_id == callsite_block[0]:
+                            if i <= callsite_block[1]+1:
+                                res.append("%s" % insn)
+                        else:
+                            res.append("%s" % insn)
+            res.append("%s" % (java_path[-1]))
+        else:
+            res.append("%s %s" % (java_method.class_name, java_method.method_name))
+
+        for v in native_path:
+            data  = native_graph.nodes[v]["data"]
+            binfo = cex_proj.get_bin_containing(v)
+            for insn in data.insns:
+                res.append("[%s+0x%04x] 0x%08x: %s" % \
+                    (binfo.name if binfo is not None else "unk", insn.addr - (binfo.min_addr if binfo is not None else 0), insn.addr, insn.mnemonic))
+        return res
+
+def _save_graph(apka, proj, graph, libpath, addr, is_cg):
+    if not save_graphs:
+        return
+
+    out_dir = os.path.join(apka.wdir, "callgraphs" if is_cg else "icfgs")
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+
+    libname = os.path.basename(libpath)
+    out_filename = os.path.join(out_dir, "graph_%s+%#x.json" % (libname, addr))
+    if not os.path.exists(out_filename):
+        bin_info = list()
+        for b in proj.get_bins():
+            bin_info.append({
+                "path": b.path,
+                "min_addr": b.min_addr,
+                "max_addr": b.max_addr
+            })
+        with open(out_filename, "w") as fout:
+            fout.write("{\n\t\"mappings\": %s,\n\t\"nodes\": %s\n}\n" % (
+                json.dumps(bin_info),
+                cex_to_json(graph)
+            ))
+
+def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False, jni_methods_whitelist=None, skip_java=False):
+    lib, offset = what.split("@")
+
+    try:
+        offset = int(offset, 16)
+    except:
+        name = offset
+        offset = None
+
+    if libs is None:
+        libs = apka.get_analyzed_libs()
+    else:
+        libs = apka.get_armv7_libs()
+    lib_hashes = list(map(lambda l: l.libhash, libs))
+
+    libhash = None
+    analyzed_lib = None
+    for l in libs:
+        if l.libname == lib:
+            libhash = l.libhash
+            analyzed_lib = l
+    if libhash is None:
+        print("[!] Unable to find lib %s" % lib)
+        return
+
+    if offset is None:
+        rz = analyzed_lib._open_rz()
+        rz.cmd("aa")
+        addr = rz.cmd("afl~%s[0]" % name).strip()
+
+        rz.quit()
+        if addr == "":
+            print("[!] Unable to find function %s" % name)
+            return
+        offset = int(addr, 16)
+
+    print("[+] Looking for path to %s @ %#x" % (lib, offset))
+
+    print("[+] Building library dependency graph... ", end="")
+    start = time.time()
+    ldg = apka.build_lib_dependency_graph()
+    elapsed = time.time() - start
+    print("OK (%.03f s)" % elapsed)
+
+    ghidra = CEXProject.pm.get_plugin_by_name("Ghidra")
+
+    jni_methods = dict()
+    for method in apka.find_native_methods_implementations(lib_hashes, reachable):
+        if method.libpath not in jni_methods:
+            jni_methods[method.libpath] = list()
+        jni_methods[method.libpath].append(method.offset)
+
+    if not disable_ghidra:
+        print("[+] Defining JNI functions in Ghidra... ", end="")
+        start = time.time()
+        for jni_lib in jni_methods:
+            ghidra.define_functions(jni_lib, jni_methods[jni_lib])
+        elapsed = time.time() - start
+        print("OK (%.03f s)" % elapsed)
+
+    for method in apka.find_native_methods_implementations(lib_hashes, reachable):
+        if jni_methods_whitelist is not None and (method.libhash, method.offset) not in jni_methods_whitelist:
+            continue
+
+        print("[+] Checking path from native method %s %s @ %s %#x" % \
+            (method.class_name, method.method_name, method.libpath, method.offset))
+        if not (method.libhash == libhash or nx.has_path(ldg, method.libhash, libhash)):
+            print("[!] No path (lib dep graph)")
+            continue
+
+        main_lib = method.libpath
+        if not disable_multilib:
+            other_libs = list(map(lambda l: l.libpath, filter(lambda l: l.libpath != method.libpath, libs)))
+        else:
+            other_libs = list()
+
+        src_addr = method.offset & 0xfffffffe
+
+        print("[+] Building the graph... ", end="")
+        plugins = []
+        if not disable_ghidra:
+            plugins.append("Ghidra")
+        if not disable_angr:
+            plugins.append("AngrEmulated")
+
+        if method.libhash in cex_project_cache:
+            proj = cex_project_cache[method.libhash]
+        else:
+            proj = CEXProject(main_lib, other_libs, plugins=plugins)
+            cex_project_cache[method.libhash] = proj
+        start = time.time()
+        if not full_icfg_path:
+            g = proj.get_callgraph(src_addr)
+        else:
+            g = proj.get_icfg(src_addr)
+        elapsed = time.time() - start
+        print(" OK (n_nodes: %d, n_edges: %d, elapsed: %.03f s)" % (len(g.nodes), len(g.edges), elapsed))
+
+        _save_graph(apka, proj, g, main_lib, src_addr, not full_icfg_path)
+
+        binfo = proj.get_bininfo(lib)
+        if binfo is None:
+            print("[!] No path (lib not in graph)")
+            continue
+        rebased_off = offset + binfo.min_addr
+        rebased_off = rebased_off & 0xfffffffffffffffe
+
+        if rebased_off not in g.nodes:
+            print("[!] No path (addr not in graph)")
+        elif nx.has_path(g, src_addr, rebased_off):
+            path = _gen_path(apka, method, proj, g, src_addr, rebased_off, full_icfg_path, skip_java)
+            print("[+] Path found:")
+            for p in path:
+                print(" -> %s" % p)
+            break
+        else:
+            print("[!] No path")
+
+def _find_path_to_csv(apka, file, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False):
+    fin = open(file, "r")
+    for line in fin:
+        line = line.strip()
+        if line == "":
+            continue
+
+        lib, offset = line.split(",")
+        lib = os.path.basename(lib)
+        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_multilib, disable_angr, disable_ghidra, full_icfg_path)
+
+    fin.close()
+
+def _find_path_to_csv2(apka, file, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False):
+    if libs is None:
+        libs = apka.get_analyzed_libs()
+    else:
+        libs = apka.get_armv7_libs()
+    lib_hashes = list(map(lambda l: l.libhash, libs))
+
+    native_methods = dict()
+    for method in apka.find_native_methods_implementations(lib_hashes, False):
+        native_methods[
+            (method.libpath.split("/")[-1], (method.offset - 0x400000) & 0xfffffffe)
+        ] = (method.libhash, method.offset)
+
+    fin = open(file, "r")
+    for line in fin:
+        line = line.strip()
+        if line == "":
+            continue
+
+        lib, offset, _, jni_desc = line.split(",")
+
+        # Java_native_name@libname.so+0xabcd
+        _, jni_liboff = jni_desc.split("@")
+        jni_lib, jni_off = jni_liboff.split("+")
+        jni_off = int(jni_off, 16) & 0xfffffffe
+        if (jni_lib, jni_off) not in native_methods:
+            # Native method not found... Strange!
+            print("[!] Skipped path search on %s+%#x since native JNI method %s+%#x was not found" % \
+                (lib, int(offset,16), jni_lib, jni_off))
+            continue
+
+        jni_whitelist = set([native_methods[jni_lib, jni_off]])
+        lib = os.path.basename(lib)
+        _find_path_to(apka, "%s@%s" % (lib, offset), libs, reachable, disable_multilib, disable_angr, disable_ghidra, full_icfg_path=False, jni_methods_whitelist=jni_whitelist, skip_java=True)
+    fin.close()
+
+def _show_lib_dep_graph(apka):
+    ldg = apka.build_lib_dependency_graph()
+
+    print("digraph {\n\tnode [shape=box];")
+    print("\tgraph [fontname = \"monospace\"];")
+    print("\tnode  [fontname = \"monospace\"];")
+    print("\tedge  [fontname = \"monospace\"];")
+
+    for n in ldg.nodes:
+        print("\t\"%s\" [label=\"%s\"];" % (n, ldg.nodes[n]["path"]))
+    print()
+
+    for src, dst, i in ldg.edges:
+        if i != 0:
+            continue
+        print("\t\"%s\" -> \"%s\";" % (src, dst))
+    print("}")
+
+def _full_analysis(apka, libs, disable_angr, disable_ghidra, disable_multilib, reachable_analysis):
+    if libs is None:
+        libs = apka.get_analyzed_libs()
+    else:
+        libs = apka.get_armv7_libs()
+    lib_hashes = list(map(lambda l: l.libhash, libs))
+
+    methods = apka.find_native_methods_implementations(lib_hashes, reachable_analysis)
+
+    if not disable_ghidra:
+        ghidra = CEXProject.pm.get_plugin_by_name("Ghidra")
+
+        jni_methods = dict()
+        for method in methods:
+            if method.libpath not in jni_methods:
+                jni_methods[method.libpath] = list()
+            jni_methods[method.libpath].append(method.offset)
+
+        print("[+] Defining JNI functions in Ghidra... ", end="")
+        start = time.time()
+        for jni_lib in jni_methods:
+            ghidra.define_functions(jni_lib, jni_methods[jni_lib])
+        elapsed = time.time() - start
+        print("OK (%.03f s)" % elapsed)
+
+    mapping_filename = os.path.join(apka.wdir, "jni-mappings.csv")
+    mapping_file = open(mapping_filename, "w")
+    for m in methods:
+        mapping_file.write("%s, %s, %s, %s, %#x\n" % \
+            (m.class_name, m.method_name, m.args_str, m.libpath, m.offset))
+    mapping_file.close()
+
+    for method in methods:
+        main_lib = method.libpath
+        if not disable_multilib:
+            other_libs = list(map(lambda l: l.libpath, filter(lambda l: l.libpath != method.libpath, libs)))
+        else:
+            other_libs = list()
+
+        src_addr = method.offset & 0xfffffffe
+
+        print("[+] Building the graph of method %s.%s" % (method.class_name, method.method_name))
+        plugins = []
+        if not disable_ghidra:
+            plugins.append("Ghidra")
+        if not disable_angr:
+            plugins.append("AngrEmulated")
+
+        if method.libhash in cex_project_cache:
+            proj = cex_project_cache[method.libhash]
+        else:
+            proj = CEXProject(main_lib, other_libs, plugins=plugins)
+            cex_project_cache[method.libhash] = proj
+        start = time.time()
+        g = proj.get_callgraph(src_addr)
+        elapsed = time.time() - start
+        print("[+] OK (n_nodes: %d, n_edges: %d, elapsed: %.03f s)" % (len(g.nodes), len(g.edges), elapsed))
+
+        _save_graph(apka, proj, g, main_lib, src_addr, True)
+
+
+def _configure_angr_ghidra(args):
+    angr_emu = CEXProject.pm.get_plugin_by_name("AngrEmulated")
+    angr_emu.use_timeout_for_cfg = True
+
+    ghidra = CEXProject.pm.get_plugin_by_name("Ghidra")
+
+    if args.ghidra_timeout:
+        ghidra.timeout = int(args.ghidra_timeout)
+
+    if args.angr_timeout:
+        angr_emu.timeout = int(args.angr_timeout)
+
+    if args.angr_max_memory:
+        angr_emu.max_memory = int(args.angr_max_memory) * 1024 * 1024
+
+    if args.angr_max_calldepth:
+        angr_emu.calldepth = int(args.angr_max_calldepth)
+
+    if args.angr_ctx_sensitivity:
+        angr_emu.ctx_sensitivity = int(args.angr_ctx_sensitivity)
+
+    if args.angr_bb_iterations:
+        angr_emu.bb_iterations = int(args.angr_bb_iterations)
+
+def main(args):
+    apk_path = args.apk
+
+    use_flowdroid = False
+    if args.use_flowdroid:
+        use_flowdroid = True
+
+    if args.verbose:
+        APKAnalyzer.log.setLevel(logging.INFO)
+
+    apka = APKAnalyzer(apk_path, use_flowdroid=use_flowdroid)
+    reachable_analysis = False
+    libs               = None
+    disable_angr       = False
+    disable_ghidra     = False
+    disable_multilib   = False
+    full_icfg_path     = False
+
+    if args.reachable:
+        reachable_analysis = True
+    if args.save_graphs:
+        global save_graphs
+        save_graphs = True
+    if not args.all_archs:
+        libs = apka.get_armv7_libs()
+        libs = list(map(lambda l: l.libhash, libs))
+    if args.disable_angr:
+        disable_angr = True
+    if args.disable_ghidra:
+        disable_ghidra = True
+    if args.disable_multilib:
+        disable_multilib = True
+    if args.print_full_icfg_path:
+        if use_flowdroid:
+            print("[!] --print-full-icfg-path is not supported when using FlowDroid backend (WIP)")
+        else:
+            full_icfg_path = True
+
+    if disable_ghidra and disable_angr:
+        sys.stderr.write("!Err: you cannot disable both Angr and Ghidra")
+        return 1
+
+    _configure_angr_ghidra(args)
+
+    if args.full_analysis:
+        save_graphs = True
+        _full_analysis(apka, libs, disable_angr, disable_ghidra, disable_multilib, reachable_analysis)
+        return 0
+
+    if args.print_native_functions:
+        _print_native_functions(apka, libs, reachable_analysis)
+
+    if args.find_producer is not None:
+        _find_producer(apka, args.find_producer, libs, reachable_analysis)
+
+    if args.check_consumer is not None:
+        _check_consumer(apka, args.check_consumer, libs)
+
+    if args.find_vtable is not None:
+        _find_vtable(apka, args.find_vtable, libs, reachable_analysis)
+
+    if args.find_path_to is not None:
+        _find_path_to(
+            apka, args.find_path_to, libs, reachable_analysis, disable_multilib, disable_angr, disable_ghidra, full_icfg_path)
+
+    if args.find_path_to_csv is not None:
+        _find_path_to_csv(
+            apka, args.find_path_to_csv, libs, reachable_analysis, disable_multilib, disable_angr, disable_ghidra, full_icfg_path)
+
+    if args.find_path_to_csv2 is not None:
+        _find_path_to_csv2(
+            apka, args.find_path_to_csv2, libs, reachable_analysis, disable_multilib, disable_angr, disable_ghidra, full_icfg_path)
+
+    if args.show_lib_dep_graph:
+        _show_lib_dep_graph(apka)
+
+    if args.cfg_dot:
+        _show_cfg_of(apka, libs, args.cfg_dot)
+
+    return 0
+
+if __name__=="__main__":
+    parser = argparse.ArgumentParser(description='DroidReach APK analyzer')
+    parser.add_argument("--cfg-dot", help="Print the CFG of the function in dot format (either class;->method(args), or lib.so@offset/name)", nargs="?")
+    parser.add_argument("--print-native-functions", help="Print native functions", action="store_true")
+    parser.add_argument("--check-consumer", help="Check if the method is a consumer", nargs="?")
+    parser.add_argument("--find-producer", help="Look for a producer given a consumer", nargs="?")
+    parser.add_argument("--find-vtable", help="Find the returned vtable of a producer", nargs="?")
+    parser.add_argument("--reachable", help="Analyze only reachable functions", action="store_true")
+    parser.add_argument("--use-flowdroid", help="Use flowdroid to generate the Java callgraph", action="store_true")
+    parser.add_argument("--disable-multilib", help="Disable the reasoning on multiple libraries", action="store_true")
+    parser.add_argument("--disable-angr", help="Disable Angr plugin", action="store_true")
+    parser.add_argument("--disable-ghidra", help="Disable Ghidra plugin", action="store_true")
+    parser.add_argument("--ghidra-timeout", help="Set timeout for Ghidra on a single binary [seconds] (default 20 min)", metavar="sec", nargs="?")
+    parser.add_argument("--angr-timeout", help="Set timeout for Angr on a iCFG [seconds] (default 30 min)", metavar="sec", nargs="?")
+    parser.add_argument("--angr-max-memory", help="Set maximum memory usage for Angr on a iCFG [MiB] (default None)", metavar="sec", nargs="?")
+    parser.add_argument("--angr-max-calldepth", help="Set maximum calldepth for Angr (default 5)", metavar="val", nargs="?")
+    parser.add_argument("--angr-ctx-sensitivity", help="Set context sensitivity for Angr (default 1)", metavar="val", nargs="?")
+    parser.add_argument("--angr-bb-iterations", help="Set maximum iterations on a basic block for Angr (default 1)", metavar="val", nargs="?")
+    parser.add_argument("--all-archs", help="Analyze all archs (not only armv7) [Experimental]", action="store_true")
+    parser.add_argument("--print-full-icfg-path", help="Print the full path in the iCFG when executing --find-path-*", action="store_true")
+    parser.add_argument("--find-path-to", metavar="libpath.so@offset/name", help="Find path to native function", nargs="?")
+    parser.add_argument("--find-path-to-csv", metavar="file.csv", help="Find path to the native functions specified in the CSV (lib.so,offset)", nargs="?")
+    parser.add_argument("--find-path-to-csv2", metavar="file.csv", help="Internal use only", nargs="?")
+    parser.add_argument("--show-lib-dep-graph", help="Print the library dependency graph in dot to stdout", action="store_true")
+    parser.add_argument("--verbose", help="Verbose mode", action="store_true")
+    parser.add_argument("--save-graphs", help="Save graphs (debug mode)", action="store_true")
+    parser.add_argument("--full-analysis", help="Run the complete analysis (slow)", action="store_true")
+
+    parser.add_argument("apk", help="The binary to analyze")
+
+    args = parser.parse_args()
+    exit(main(args))
