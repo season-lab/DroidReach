@@ -2,22 +2,27 @@
 
 Framework for testing the reachability of native functions in Android applications.
 
+### Repository Description
+- `apk_analyzer/`: main analysis classes of DroidReach.
+- `benchmarks/`: submodule that points to our microbenchmarks.
+- `cex_src/`: submodule that points to our library CEX. It implements the CFG extraction functionalities of DroidReach for the native code.
+- `bin/`: contains the `dreach` binary
+- `docker/`: contains the Dockerfile and some scripts to build an image and use it.
+- `data/`: contains information about the experimental evaluation described in the paper.
+
 ### Installation
 
-DroidReach can be installed using docker.
-From the `docker` subdirectory of this repository:
+DroidReach can be used through docker.
+From the `docker` subdirectory of this repository, run the following command to build the `droidreach` image:
 
 ``` bash
 $ ./build_docker.sh
-[...]
-$ ./run_docker.sh
 ```
 
-After starting the docker container for the first time, execute (within the container):
-```
-$ dreach_install_plugins.sh
-```
-The scripts will compile and install the rizin __JNI finder plugin__ and a Java demangler.
+After building the image, you can use the `start_docker.sh` script to start a container with DroidReach installed and ready to use.
+Note that the code is _mounted_ inside the container, so modifications to the source code will affect any running container.
+
+The `start_docker.sh` script will also mount the directory `/tmp/dreach` of the host in `~/shared`: you can use this directory to pass APKs to the container.
 
 ### How to Use
 
@@ -78,9 +83,30 @@ optional arguments:
   --full-analysis       Run the complete analysis (slow)
 ```
 
-You can start using the tool running it on our __microbenchmarks__:
+You can start using the tool running it on our __microbenchmarks__. Insider the docker container, run:
 ```
 $ cd /home/ubuntu/droidreach/benchmarks/apks
-$ ./run.sh
+$ ./run.sh StaticMapping.apk
 [...]
+```
+
+### Experimental data
+
+* The dataset contains APKs taken from the Google Play Store. The detailed list is available [here](data/dataset.csv).
+* A more detailed discussion of the false negatives is available [here](data/results-false-negatives.md).
+* A more detailed discussion of the false positives is available [here](data/results-false-positives.csv).
+* The benchmark suite discussed in "Microbenchmarks" is available [here](benchmarks/). The repository contains the source code, compiled APKs, and the results of an expermental evaluation when analyzing the benchmarks with different tools.
+
+### Cite
+
+Bibtex:
+
+```
+@inproceedings{DROIDREACH-ESORICS22,
+ author={Borzacchiello, Luca and Coppa, Emilio and Maiorca, Davide and Columbu, Andrea and Demetrescu, Camil and Giacinto, Giorgio},
+ title={{Reach Me if You Can: On Native Vulnerability Reachability in Android Apps}},
+ booktitle={Proceedings of the 27th European Symposium on Research in Computer Security},
+ series={ESORICS '22},
+ year={2022},
+}
 ```
