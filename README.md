@@ -95,7 +95,7 @@ $ ./run.sh StaticMapping.apk
 * The dataset contains APKs taken from the Google Play Store. The detailed list is available [here](data/dataset.csv).
 * A more detailed discussion of the false negatives is available [here](data/results-false-negatives.md).
 * A more detailed discussion of the false positives is available [here](data/results-false-positives.csv).
-* The benchmark suite discussed in "Microbenchmarks" is available [here](benchmarks/). The repository contains the source code, compiled APKs, and the results of an expermental evaluation when analyzing the benchmarks with different tools.
+* The benchmark suite discussed in "Microbenchmarks" is available [here](https://github.com/season-lab/DroidReachBenchmarks/tree/master). The repository contains the source code, compiled APKs, and the results of an expermental evaluation when analyzing the benchmarks with different tools.
 
 ### Cite
 
