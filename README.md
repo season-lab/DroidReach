@@ -6,7 +6,7 @@ Framework for testing the reachability of native functions in Android applicatio
 - `apk_analyzer/`: main analysis classes of DroidReach.
 - `benchmarks/`: submodule that points to our microbenchmarks.
 - `cex_src/`: submodule that points to our library CEX. It implements the CFG extraction functionalities of DroidReach for the native code.
-- `bin/`: contains the `dreach` binary
+- `bin/`: contains the `dreach` executable.
 - `docker/`: contains the Dockerfile and some scripts to build an image and use it.
 - `data/`: contains information about the experimental evaluation described in the paper.
 
@@ -22,11 +22,11 @@ $ ./build_docker.sh
 After building the image, you can use the `start_docker.sh` script to start a container with DroidReach installed and ready to use.
 Note that the code is _mounted_ inside the container, so modifications to the source code will affect any running container.
 
-The `start_docker.sh` script will also mount the directory `/tmp/dreach` of the host in `~/shared`: you can use this directory to pass APKs to the container.
+The `start_docker.sh` script will also mount the directory `/tmp/dreach` of the host in `~/shared`: you can use this directory to share APKs with the container.
 
 ### How to Use
 
-The `dreach` binary is the entry point of the tool. It takes the following command line arguments:
+The `dreach` executable is the entry point of the tool. It takes the following command line arguments:
 
 ``` bash
 $ dreach -h
@@ -86,7 +86,7 @@ optional arguments:
 You can start using the tool running it on our __microbenchmarks__. Insider the docker container, run:
 ```
 $ cd /home/ubuntu/droidreach/benchmarks/apks
-$ ./run.sh StaticMapping.apk
+$ ./run.sh
 [...]
 ```
 
@@ -98,8 +98,6 @@ $ ./run.sh StaticMapping.apk
 * The benchmark suite discussed in "Microbenchmarks" is available [here](https://github.com/season-lab/DroidReachBenchmarks/tree/master). The repository contains the source code, compiled APKs, and the results of an expermental evaluation when analyzing the benchmarks with different tools.
 
 ### Cite
-
-Bibtex:
 
 ```
 @inproceedings{DROIDREACH-ESORICS22,
