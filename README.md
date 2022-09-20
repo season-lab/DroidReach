@@ -2,7 +2,7 @@
 
 Framework for testing the reachability of native functions in Android applications.
 
-### Repository Description
+## Repository Description
 - `apk_analyzer/`: main analysis classes of DroidReach.
 - `benchmarks/`: submodule that points to our microbenchmarks.
 - `cex_src/`: submodule that points to our library CEX. It implements the CFG extraction functionalities of DroidReach for the native code.
@@ -10,7 +10,7 @@ Framework for testing the reachability of native functions in Android applicatio
 - `docker/`: contains the Dockerfile and some scripts to build an image and use it.
 - `data/`: contains information about the experimental evaluation described in the paper.
 
-### Installation
+## Installation
 
 DroidReach can be used through docker.
 From the `docker` subdirectory of this repository, run the following command to build the `droidreach` image:
@@ -24,7 +24,7 @@ Note that the code is _mounted_ inside the container, so modifications to the so
 
 The `start_docker.sh` script will also mount the directory `/tmp/dreach` of the host in `~/shared`: you can use this directory to share APKs with the container.
 
-### How to Use
+## Usage
 
 The `dreach` executable is the entry point of the tool. It takes the following command line arguments:
 
@@ -90,14 +90,14 @@ $ ./run.sh
 [...]
 ```
 
-### Experimental data
+## Experimental data
 
 * The dataset contains APKs taken from the Google Play Store. The detailed list is available [here](data/dataset.csv).
 * A more detailed discussion of the false negatives is available [here](data/results-false-negatives.md).
 * A more detailed discussion of the false positives is available [here](data/results-false-positives.csv).
 * The benchmark suite discussed in "Microbenchmarks" is available [here](https://github.com/season-lab/DroidReachBenchmarks/tree/master). The repository contains the source code, compiled APKs, and the results of an expermental evaluation when analyzing the benchmarks with different tools.
 
-### Cite
+## Cite
 
 ```
 @inproceedings{DROIDREACH-ESORICS22,
