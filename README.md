@@ -90,6 +90,12 @@ $ ./run.sh
 [...]
 ```
 
+#### APIs
+
+DroidReach offers also Python APIs. The main analysis class is `APKAnalyzer` located under the `apk_analyzer` directory.
+
+The CFG extraction functionalities, instead, are implemented in the `CEX` subproject. You can find more information in [its own directory](https://github.com/season-lab/cex).
+
 ## Experimental data
 
 * The dataset contains APKs taken from the Google Play Store. The detailed list is available [here](data/dataset.csv).
