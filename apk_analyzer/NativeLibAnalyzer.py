@@ -137,7 +137,7 @@ class NativeLibAnalyzer(object):
 
         symbols = rz.cmdj("isj")
         for symbol in symbols:
-            if symbol["type"] != "FUNC" or symbol["bind"] != "GLOBAL":
+            if symbol["type"] != "FUNC" or symbol["bind"] != "GLOBAL" or "vaddr" not in symbol:
                 continue
             if symbol["is_imported"]:
                 self._imported_functions.append(
