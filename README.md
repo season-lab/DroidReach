@@ -114,3 +114,7 @@ The CFG extraction functionalities, instead, are implemented in the `CEX` subpro
  year={2022},
 }
 ```
+
+## Preprint of the paper
+
+A preprint of the paper is available [here](https://github.com/ecoppa/ecoppa.github.io/raw/master/assets/pdf/droidreach-preprint.pdf).
