@@ -14,7 +14,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from cex_src.cex import CEXProject
 from cex_src.cex.cfg_extractors.angr_plugin.common import AngrCfgExtractor
 from collections import namedtuple
-from apk_analyzer.utils import md5_hash, find_jni_functions_angr
+from apk_analyzer.utils import sha256_hash, find_jni_functions_angr
 from apk_analyzer.utils.prepare_state import prepare_initial_state
 from apk_analyzer.utils.timeout_decorator import TimeoutError, timeout
 from apk_analyzer.utils.path_engine import PathEngine, generate_paths
@@ -63,7 +63,7 @@ class NativeLibAnalyzer(object):
             self.ghidra = CEXProject.pm.get_plugin_by_name("Ghidra")
         self.libname = os.path.basename(libpath)
         self.libpath = libpath
-        self.libhash = md5_hash(self.libpath)
+        self.libhash = sha256_hash(self.libpath)
 
         if "/armeabi/" in libpath:
             self.arch = "armeabi"
@@ -231,7 +231,7 @@ class NativeLibAnalyzer(object):
             NativeLibAnalyzer.log.warning("Detected more than one vtable on jni function @ %#x" % offset)
         return vtables[0]
 
-    def _get_returned_vtable_angr(self, offset):
+    def _get_returned_vtable_angr(self, offset, full_state=False):
         MAXITER   = sys.maxsize
         MAXSTATES = 10000
 
@@ -257,12 +257,18 @@ class NativeLibAnalyzer(object):
         i        = 0
         max_time = 60 * 15
         start    = time.time()
-        smgr     = proj.factory.simgr(state, veritesting=False, save_unsat=False)
+        smgr     = proj.factory.simgr(state, veritesting=True, save_unsat=False)
+        smgr.use_technique(angr.exploration_techniques.MemoryWatcher(min_memory=None)) # Default: 95% of all available RAM
+
+        # Hack: initialize found stash before "find" keyword is used in smgr.explore()
+        smgr.stash(to_stash="found")
+        smgr.unstash(from_stash="found")
+
         while len(smgr.active) > 0:
-            if len(vtables) > 0 or i > MAXITER:
+            if len(smgr.found) > 0 or len(vtables) > 0 or i > MAXITER:
                 break
 
-            smgr.explore(n=1)
+            smgr.explore(n=1, find=0xdeadbeee)
             for stash in smgr.stashes:
                 q = smgr.stashes[stash]
                 for s in q:
@@ -272,6 +278,7 @@ class NativeLibAnalyzer(object):
                     except:
                         pass
                     if addr is not None and addr == 0xdeadbeee:
+                        print(f"reached deadbeee state. R0: {s.regs.r0} R1: {s.regs.r1} R2: {s.regs.r2}")
                         vtable = s.mem[s.regs.r0].uint32_t.resolved
                         if not vtable.symbolic and vtable.args[0] > 0x400000:
                             first_entry = s.mem[vtable].uint32_t.resolved
@@ -298,8 +305,21 @@ class NativeLibAnalyzer(object):
         if len(smgr.active) > MAXSTATES:
             sys.stderr.write("WARNING: %s @ %#x\n" % (self.libpath, offset))
             sys.stderr.write("WARNING: killed for generating too many states\n")
-
+        if len(smgr.found) > 0:
+            (f"Found {len(smgr.found)} states ; {(self.libpath, offset)}")
+            for s in smgr.found:
+                print(f"reached deadbeee state. R0: {s.regs.r0} R1: {s.regs.r1} R2: {s.regs.r2}")
+                vtable = s.mem[s.regs.r0].uint32_t.resolved
+                if not vtable.symbolic and vtable.args[0] > 0x400000:
+                    first_entry = s.mem[vtable].uint32_t.resolved
+                    print(f"Resolved first entry as {first_entry}, symbolic: {first_entry.symbolic}")
+                    if not first_entry.symbolic:
+                        section = proj.loader.find_section_containing(first_entry.args[0])
+                        if section is not None and section.name == ".text":
+                            vtables.append(vtable.args[0])
         if len(vtables) > 0:
+            if full_state:
+                return smgr.found[0]
             return vtables[0]
         return None
 
@@ -364,12 +384,14 @@ class NativeLibAnalyzer(object):
         CEXProject.pm.get_plugin_by_name("AngrEmulated").build_cfg = True
         return None
 
-    def get_returned_vtable(self, offset, use_angr=False):
+    def get_returned_vtable(self, offset, use_angr=False, full_state=False):
         # Check if a JNI Method that returns a JLong is creating a C++ Object,
         # and if so return the corresponding vtable
 
         vt = None
         try:
+            if full_state:
+                return self._get_returned_vtable_angr(offset,True)
             if use_angr:
                 vt = self._get_returned_vtable_angr(offset)
             else:
@@ -382,6 +404,13 @@ class NativeLibAnalyzer(object):
             NativeLibAnalyzer.log.warning("get_returned_vtable failed (use_angr=%s), ERR: %s" % \
                 (str(use_angr), str(e)))
         return vt
+    
+    def emulate_consumer_state(self, offset,starting_state,pos_arg):
+        injected_state = self._inject_posarg(starting_state,offset,pos_arg)
+        pass #TODO rest of the Angr setup.
+
+    def _inject_posarg(self, state, offset, posarg):
+        pass #TODO: - Copy R0 value, Create new state with same memory layout and R(posarg) = old R0. Set PC to offset.
 
     def _get_jni_functions_ghidra(self):
         self._jni_functions = list()

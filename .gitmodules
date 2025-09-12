@@ -1,6 +1,7 @@
 [submodule "cex_src"]
 	path = cex_src
-	url = https://github.com/season-lab/cex
+	url = https://github.com/zoopr/cex
+	branch = master
 [submodule "benchmarks"]
 	path = benchmarks
 	url = https://github.com/season-lab/DroidReachBenchmarks

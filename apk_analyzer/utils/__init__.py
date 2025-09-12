@@ -68,10 +68,10 @@ def get_static_constructors_map(nodes: NodeView):
             res[class_name] = node_str
     return res
 
-def md5_hash(f):
+def sha256_hash(f):
     with open(f,'rb') as f_binary:
-        md5 = hashlib.md5(f_binary.read()).hexdigest()
-    return md5
+        res = hashlib.sha256(f_binary.read()).hexdigest()
+    return res
 
 def check_malformed_elf(data):
     f = io.BytesIO(data)

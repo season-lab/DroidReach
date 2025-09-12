@@ -82,6 +82,58 @@ def _show_cfg_of(apka, libs, thing):
     else:
         show_java_cfg(thing)
 
+def _full_consumer_producer_pipeline(apka, libs=None):
+    # print native functions stub
+    producer_cache = {}
+    methods = None
+    if args.reachable:
+        methods = apka.find_reachable_native_methods()
+    else:
+        methods = apka.find_native_methods()
+    
+    nmi = apka.find_native_methods_implementations(libs)
+    
+    for class_name, method_name, args_str in methods:
+        native_impls = apka.find_native_implementations(method_name, class_name, args_str, libs)
+        if len(native_impls) == 0:
+            print("   * no implementation found")
+            continue
+        for native_impl in native_impls:
+            print("   * %s\t%#x" % (native_impl.analyzer.libpath, native_impl.offset))
+
+        # consumer stub
+        consumer = class_name + method_name
+        consumer_impl = None
+        for method in nmi:
+            if method.class_name == class_name and method.method_name == method_name:
+                consumer_impl = method
+                break
+        if consumer_impl is None:
+            print("[+] Unable to find method", consumer)
+            continue
+        
+        print("[+] Checking if", consumer, "is a consumer")
+        idx_args = apka.jlong_as_cpp_obj(consumer_impl, use_angr=not args.disable_angr)
+        print("[!] The consumer uses the args %s as jlong pointers" % str(idx_args))
+
+        # Producer stub
+        if len(idx_args) > 0:
+            print("[+] Finding producer for method", consumer)
+            maybe_producers = apka.find_potential_producers(consumer_impl, lib_whitelist=libs, reachable=False) # Consider all methods that produce a compatible vtable, explore indirect reachability later
+            print("[+] Found %d possible producers" % len(maybe_producers))
+            for maybe_producer in maybe_producers:
+                if maybe_producer.offset in producer_cache:
+                    vtable = producer_cache[maybe_producer.offset]
+                else:
+                    vtable = apka.vtable_from_jlong_ret(maybe_producer, use_angr=not args.disable_angr)
+                    producer_cache[maybe_producer.offset] = vtable
+                if vtable is not None:
+                    print("[!] Producer: %s %s %s @ %s %#x - vtable %#x" % \
+                        (maybe_producer.class_name, maybe_producer.method_name, maybe_producer.args_str, maybe_producer.libpath, maybe_producer.offset, vtable))
+                    break
+    print(f"[!CONS] Unique Producer cache length: {len(producer_cache)}")        
+    
+
 def _print_native_functions(apka, libs=None, reachable=False):
     methods = None
     if reachable:
@@ -118,11 +170,12 @@ def _find_producer(apka, consumer, libs=None, reachable=False):
     print("[+] Found %d possible producers" % len(maybe_producers))
     for maybe_producer in maybe_producers:
         print(maybe_producer)
-        vtable = apka.vtable_from_jlong_ret(maybe_producer, use_angr=False)
+        vtable = apka.vtable_from_jlong_ret(maybe_producer, use_angr=not args.disable_angr)
         if vtable is not None:
             print("[!] Producer: %s %s %s @ %s %#x - vtable %#x" % \
                 (maybe_producer.class_name, maybe_producer.method_name, maybe_producer.args_str, maybe_producer.libpath, maybe_producer.offset, vtable))
-            break
+            return maybe_producer
+    return None
 
 def _check_consumer(apka, consumer, libs=None):
     class_name  = "L" + "/".join(consumer.split(".")[:-1]) + ";"
@@ -139,8 +192,9 @@ def _check_consumer(apka, consumer, libs=None):
         return
 
     print("[+] Checking if", consumer, "is a consumer")
-    args = apka.jlong_as_cpp_obj(consumer_impl, use_angr=False)
-    print("[!] The consumer uses the args %s as jlong pointers" % str(args))
+    idx_args = apka.jlong_as_cpp_obj(consumer_impl, use_angr=not args.disable_angr)
+    print("[!] The consumer uses the args %s as jlong pointers" % str(idx_args))
+    return idx_args
 
 def _find_vtable(apka, producer, libs=None, reachable=False):
     class_name  = "L" + "/".join(producer.split(".")[:-1]) + ";"
@@ -161,7 +215,7 @@ def _find_vtable(apka, producer, libs=None, reachable=False):
     print(producer_impl)
     print("[+] Finding vtable for producer", producer, "@", hex(producer_impl.offset))
     angr_emu.use_timeout_for_cfg = True
-    vtable = apka.vtable_from_jlong_ret(producer_impl, use_angr=False)
+    vtable = apka.vtable_from_jlong_ret(producer_impl, use_angr=not args.disable_angr)
     if vtable is not None:
         print("[!] vtable:", hex(vtable))
     else:
@@ -226,16 +280,18 @@ def _gen_path(apka, java_method, cex_proj, native_graph, src_native, dst_native,
                     (binfo.name if binfo is not None else "unk", insn.addr - (binfo.min_addr if binfo is not None else 0), insn.addr, insn.mnemonic))
         return res
 
-def _save_graph(apka, proj, graph, libpath, addr, is_cg):
+def _save_graph(apka, proj, graph, libpath, addr, is_cg, to_stdout=False):
     if not save_graphs:
         return
 
     out_dir = os.path.join(apka.wdir, "callgraphs" if is_cg else "icfgs")
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
+    print(f"Writing to directory {out_dir}")
 
     libname = os.path.basename(libpath)
     out_filename = os.path.join(out_dir, "graph_%s+%#x.json" % (libname, addr))
+    print(f"Writing to file {out_filename}")
     if not os.path.exists(out_filename):
         bin_info = list()
         for b in proj.get_bins():
@@ -244,13 +300,19 @@ def _save_graph(apka, proj, graph, libpath, addr, is_cg):
                 "min_addr": b.min_addr,
                 "max_addr": b.max_addr
             })
-        with open(out_filename, "w") as fout:
-            fout.write("{\n\t\"mappings\": %s,\n\t\"nodes\": %s\n}\n" % (
+        if to_stdout is True:
+            print("{\n\t\"mappings\": %s,\n\t\"nodes\": %s\n}\n" % (
                 json.dumps(bin_info),
                 cex_to_json(graph)
             ))
+        else:
+            with open(out_filename, "w") as fout:
+                fout.write("{\n\t\"mappings\": %s,\n\t\"nodes\": %s\n}\n" % (
+                    json.dumps(bin_info),
+                    cex_to_json(graph)
+                ))
 
-def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False, jni_methods_whitelist=None, skip_java=False):
+def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False, disable_angr=False, disable_ghidra=False, full_icfg_path=False, jni_methods_whitelist=None, skip_java=False, cp_extended_icfg=False):
     lib, offset = what.split("@")
 
     try:
@@ -344,7 +406,18 @@ def _find_path_to(apka, what, libs=None, reachable=False, disable_multilib=False
         if not full_icfg_path:
             g = proj.get_callgraph(src_addr)
         else:
-            g = proj.get_icfg(src_addr)
+            if not cp_extended_icfg:
+                g = proj.get_icfg(src_addr)
+            else:
+                print("Attempting to detect C-P pattern extension.")
+                is_consumer = _check_consumer(apka,what,libs)
+                if len(is_consumer) > 0:
+                    search_producer = _find_producer(apka,what,libs,reachable)
+                    if search_producer is not None:
+                        print(" Pair found. Merging ICFGs (type:lax) ")
+                        g = proj.extended_cp_merge_icfgs_lax(search_producer.offset, src_addr)
+                        # g = proj.extended_cp_merge_icfgs_fine(search_producer.offset, src_addr, is_consumer[0]) # At the moment we are only resolving one positional argument.
+
         elapsed = time.time() - start
         print(" OK (n_nodes: %d, n_edges: %d, elapsed: %.03f s)" % (len(g.nodes), len(g.edges), elapsed))
 
@@ -435,7 +508,7 @@ def _show_lib_dep_graph(apka):
         print("\t\"%s\" -> \"%s\";" % (src, dst))
     print("}")
 
-def _full_analysis(apka, libs, disable_angr, disable_ghidra, disable_multilib, reachable_analysis):
+def _full_analysis(apka, libs, disable_angr, disable_ghidra, disable_multilib, reachable_analysis, full_icfg_path):
     if libs is None:
         libs = apka.get_analyzed_libs()
     else:
@@ -453,7 +526,7 @@ def _full_analysis(apka, libs, disable_angr, disable_ghidra, disable_multilib, r
                 jni_methods[method.libpath] = list()
             jni_methods[method.libpath].append(method.offset)
 
-        print("[+] Defining JNI functions in Ghidra... ", end="")
+        print(f"[+] Defining JNI functions in Ghidra... ", end="")
         start = time.time()
         for jni_lib in jni_methods:
             ghidra.define_functions(jni_lib, jni_methods[jni_lib])
@@ -489,11 +562,14 @@ def _full_analysis(apka, libs, disable_angr, disable_ghidra, disable_multilib, r
             proj = CEXProject(main_lib, other_libs, plugins=plugins)
             cex_project_cache[method.libhash] = proj
         start = time.time()
-        g = proj.get_callgraph(src_addr)
+        if full_icfg_path:
+            g = proj.get_icfg(src_addr)
+        else:
+            g = proj.get_callgraph(src_addr)
         elapsed = time.time() - start
         print("[+] OK (n_nodes: %d, n_edges: %d, elapsed: %.03f s)" % (len(g.nodes), len(g.edges), elapsed))
 
-        _save_graph(apka, proj, g, main_lib, src_addr, True)
+        _save_graph(apka, proj, g, main_lib, src_addr, not full_icfg_path)
 
 
 def _configure_angr_ghidra(args):
@@ -566,8 +642,11 @@ def main(args):
 
     if args.full_analysis:
         save_graphs = True
-        _full_analysis(apka, libs, disable_angr, disable_ghidra, disable_multilib, reachable_analysis)
+        _full_analysis(apka, libs, disable_angr, disable_ghidra, disable_multilib, reachable_analysis, full_icfg_path)
         return 0
+    
+    if args.full_consumer:
+        _full_consumer_producer_pipeline(apka,libs)
 
     if args.print_native_functions:
         _print_native_functions(apka, libs, reachable_analysis)
@@ -604,6 +683,7 @@ def main(args):
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='DroidReach APK analyzer')
     parser.add_argument("--cfg-dot", help="Print the CFG of the function in dot format (either class;->method(args), or lib.so@offset/name)", nargs="?")
+    parser.add_argument("--full-consumer", help="Execute all steps in the Consumer-Producer pipeline automatically. Supports the --reachable flag", action="store_true")
     parser.add_argument("--print-native-functions", help="Print native functions", action="store_true")
     parser.add_argument("--check-consumer", help="Check if the method is a consumer", nargs="?")
     parser.add_argument("--find-producer", help="Look for a producer given a consumer", nargs="?")

@@ -21,7 +21,7 @@ RUN pip install meson
 RUN cd /opt                                               && \
     git clone https://github.com/rizinorg/rizin.git       && \
     cd /opt/rizin                                         && \
-    git checkout 3752e24b989b45d30868624f4a973fef01466ad6 && \
+    git checkout 99344f16c6ce67af5cb1e19b4a3c1915b81fff5e && \
     meson build                                           && \
     ninja -C build install
 
@@ -43,11 +43,8 @@ RUN cd /opt && mkdir android-sdk && cd android-sdk                              
         ./cmdline-tools/bin/sdkmanager \
             --sdk_root=/opt/android-sdk "platforms;android-28" "platforms;android-29" "platforms;android-30"
 
-ARG USER_ID=1000
-ARG GROUP_ID=1000
-
-RUN groupadd --gid ${GROUP_ID} ubuntu \
-    && useradd --uid ${USER_ID} --gid ubuntu --shell /bin/bash --create-home ubuntu
+RUN groupadd --gid 1000 ubuntu \
+    && useradd --uid 1000 --gid ubuntu --shell /bin/bash --create-home ubuntu
 RUN echo "ubuntu ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/ubuntu && \
     chmod 0440 /etc/sudoers.d/ubuntu
 
@@ -61,14 +58,14 @@ ENV PATH=$PATH:/home/ubuntu/.local/bin:/home/ubuntu/droidreach/bin
 # Other dependencies
 RUN pip install networkx==2.5.1 \
                 yapsy           \
-                angr==9.0.8021  \
+                angr==9.2.102   \
                 rzpipe          \
                 pydot==1.4.2    \
                 pyyaml          \
                 psutil
 
 # Angr fix (comment bugged debug print)
-RUN sed -i '1619,1622 {s/^/#/}' /home/ubuntu/.local/lib/python3.8/site-packages/angr/analyses/cfg/cfg_emulated.py
+# RUN sed -i '1619,1622 {s/^/#/}' /home/ubuntu/.local/lib/python3.8/site-packages/angr/analyses/cfg/cfg_emulated.py
 
 # Androguard
 RUN git clone https://github.com/androguard/androguard.git /tmp/androguard && \

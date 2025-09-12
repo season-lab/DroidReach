@@ -169,11 +169,12 @@ static void init_sections(RzCore* core) {
 
     RzBinFile *bf = core->bin->cur;
 	RzBinObject *o = bf ? bf->o : NULL;
-    RzList *sections = o ? o->sections : NULL;
+    RzPVector *sections = o ? o->sections : NULL;
 
-    void       * _section;
-    RzListIter * iter;
-	rz_list_foreach (sections, iter, _section) {
+    void * _section;
+    void ** iter;
+	rz_pvector_foreach (sections, iter) {
+        _section = *iter;
         RzBinSection* section = (RzBinSection*)_section;
         if (section->size == 0 || section->is_segment)
             continue;
@@ -288,7 +289,7 @@ extern "C" {
         /* .data = */ &rz_core_plugin_java_jni_finder,
         /* .version = */ RZ_VERSION,
         /* .free = */ NULL,
-        /* .pkgname = */ "rz-Java-jni"
+    //    /* .pkgname = */ "rz-Java-jni"
     };
 
     RZ_API RzLibStruct *rizin_plugin_function(void) {

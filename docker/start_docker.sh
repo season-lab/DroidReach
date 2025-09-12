@@ -3,7 +3,7 @@
 SCRIPT=`realpath $0`
 SCRIPTPATH=`dirname $SCRIPT`
 
-docker run --rm -it --shm-size=4gb \
+docker run --rm -it --shm-size=8gb \
     -v "$SCRIPTPATH/..:/home/ubuntu/droidreach" \
     -v "/tmp/dreach:/home/ubuntu/shared" \
     droidreach bash
